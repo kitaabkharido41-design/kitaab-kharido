@@ -102,7 +102,7 @@ const LC = "text-xs uppercase tracking-wider text-amber/80 font-semibold"
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-export function AdminDashboard({ userId }: { userId: string }) {
+export function AdminDashboard({ userId, userName }: { userId: string; userName?: string }) {
   const supabase = createClient()
 
   // Navigation
@@ -501,7 +501,7 @@ export function AdminDashboard({ userId }: { userId: string }) {
             <span className="text-amber">KK</span>{' '}
             <span className="text-white">Admin</span>
           </h1>
-          <p className="text-xs text-white/30 mt-1">Kitaab Kharido</p>
+          <p className="text-xs text-white/30 mt-1">{userName ? `Hi, ${userName}` : 'Kitaab Kharido'}</p>
         </div>
         <div className="flex-1 py-4 overflow-y-auto">
           {sidebarNav()}

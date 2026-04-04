@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type {
   Book, HeroSlide, Order, OrderItem, BookRequest, SellRequest, SiteSetting
@@ -8,7 +8,8 @@ import type {
 import {
   LayoutDashboard, BookOpen, ShoppingBag, ImageIcon, BookOpenText,
   IndianRupee, Settings, ArrowLeft, Menu, Plus, Pencil, Trash2,
-  Loader2, Package, DollarSign, Clock, BookX, RefreshCw, Search, LogOut
+  Loader2, Package, DollarSign, Clock, BookX, RefreshCw, Search, LogOut,
+  Upload, X
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -85,10 +86,12 @@ const PAYMENT_STATUSES = ['pending', 'paid', 'failed', 'refunded']
 const BOOK_REQUEST_STATUSES = ['pending', 'found', 'not_available', 'fulfilled']
 const SELL_REQUEST_STATUSES = ['pending', 'reviewed', 'accepted', 'rejected']
 
+const MAX_IMAGES = 3
+
 const EMPTY_BOOK_FORM = {
   title: '', author: '', category: 'Academic', sub_category: '',
   price: 0, original_price: 0, discount_tag: 'None', condition: 'Like New',
-  stock_quantity: 1, image_urls: '', isbn: '', publisher: '', edition: '',
+  stock_quantity: 1, image_urls: [] as string[], isbn: '', publisher: '', edition: '',
   language: 'English', description: '', active: true, featured: false,
 }
 
@@ -127,6 +130,7 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
   const [editingBook, setEditingBook] = useState<Book | null>(null)
   const [bookForm, setBookForm] = useState(EMPTY_BOOK_FORM)
   const [bookSaving, setBookSaving] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Delete dialog
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -151,56 +155,38 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
   const [requestEdits, setRequestEdits] = useState<Record<string, { status: string; reply: string; offer_price: string }>>({})
   const [requestSaving, setRequestSaving] = useState<Record<string, boolean>>({})
 
-  // ── Fetch Data ──────────────────────────────────────────────────────
+  // ── Fetch Data (via API) ────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [booksRes, ordersRes, slidesRes, bookRequestsRes, sellRequestsRes, settingsRes] = await Promise.all([
-        supabase.from('books').select('*').order('created_at', { ascending: false }),
-        supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }),
-        supabase.from('hero_slides').select('*').order('sort_order'),
-        supabase.from('book_requests').select('*').order('created_at', { ascending: false }),
-        supabase.from('sell_requests').select('*').order('created_at', { ascending: false }),
-        supabase.from('site_settings').select('*'),
-      ])
+      const res = await fetch('/api/admin/data')
+      if (!res.ok) throw new Error('Failed to fetch admin data')
+      const data = await res.json()
 
-      if (booksRes.data) setBooks(booksRes.data as Book[])
-      if (ordersRes.data) setOrders(ordersRes.data as Order[])
-      if (slidesRes.data) setSlides(slidesRes.data as HeroSlide[])
-      if (bookRequestsRes.data) setBookRequests(bookRequestsRes.data as BookRequest[])
-      if (sellRequestsRes.data) setSellRequests(sellRequestsRes.data as SellRequest[])
-      if (settingsRes.data) {
+      setBooks(data.books || [])
+      setOrders(data.orders || [])
+      setSlides(data.slides || [])
+      setBookRequests(data.bookRequests || [])
+      setSellRequests(data.sellRequests || [])
+
+      if (data.settings && Array.isArray(data.settings)) {
         const map: Record<string, string> = {}
-        ;(settingsRes.data as SiteSetting[]).forEach(s => { if (s.key) map[s.key] = s.value || '' })
+        data.settings.forEach((s: SiteSetting) => { if (s.key) map[s.key] = s.value || '' })
         setSettings(map)
       }
     } catch (err) {
       console.error('Failed to fetch admin data:', err)
-      toast.error('Failed to load data')
+      // Don't show toast for fetch errors - dashboard should still render
     } finally {
       setLoading(false)
     }
-  }, [supabase])
+  }, [])
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
   // ── Helpers ─────────────────────────────────────────────────────────
   const formatCurrency = (amount: number) => `₹${amount.toLocaleString('en-IN')}`
   const formatDate = (date: string) => new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-
-  const refreshTable = useCallback(async (table: string) => {
-    const q = supabase.from(table).select('*').order('created_at', { ascending: false })
-    const res = await q
-    if (res.data) {
-      if (table === 'books') setBooks(res.data as Book[])
-      else if (table === 'orders') setOrders(res.data as Order[])
-      else if (table === 'book_requests') setBookRequests(res.data as BookRequest[])
-      else if (table === 'sell_requests') setSellRequests(res.data as SellRequest[])
-      else if (table === 'hero_slides') {
-        setSlides((res.data as HeroSlide[]).sort((a, b) => a.sort_order - b.sort_order))
-      }
-    }
-  }, [supabase])
 
   // ── Logout ──────────────────────────────────────────────────────────
   const handleLogout = async () => {
@@ -232,6 +218,53 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
     return result
   }, [books, bookSearch, bookCategoryFilter])
 
+  // ── Image Upload Helpers ────────────────────────────────────────────
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files) return
+
+    const remaining = MAX_IMAGES - bookForm.image_urls.length
+    if (remaining <= 0) {
+      toast.error(`Maximum ${MAX_IMAGES} images allowed`)
+      return
+    }
+
+    const filesToProcess = Array.from(files).slice(0, remaining)
+
+    filesToProcess.forEach(file => {
+      if (!file.type.startsWith('image/')) {
+        toast.error(`${file.name} is not an image file`)
+        return
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error(`${file.name} is too large (max 2MB)`)
+        return
+      }
+
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        const base64 = ev.target?.result as string
+        if (base64) {
+          setBookForm(prev => ({
+            ...prev,
+            image_urls: [...prev.image_urls, base64]
+          }))
+        }
+      }
+      reader.readAsDataURL(file)
+    })
+
+    // Reset file input so same file can be selected again
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const removeImage = (index: number) => {
+    setBookForm(prev => ({
+      ...prev,
+      image_urls: prev.image_urls.filter((_, i) => i !== index)
+    }))
+  }
+
   // ── Book CRUD ───────────────────────────────────────────────────────
   const openBookDialog = (book?: Book) => {
     if (book) {
@@ -241,14 +274,15 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
         sub_category: book.sub_category || '', price: book.price,
         original_price: book.original_price, discount_tag: book.discount_tag || 'None',
         condition: book.condition, stock_quantity: book.stock_quantity,
-        image_urls: (book.image_urls || []).join('\n'), isbn: book.isbn || '',
+        image_urls: book.image_urls || [],
+        isbn: book.isbn || '',
         publisher: book.publisher || '', edition: book.edition || '',
         language: book.language || 'English', description: book.description || '',
         active: book.active, featured: book.featured,
       })
     } else {
       setEditingBook(null)
-      setBookForm({ ...EMPTY_BOOK_FORM })
+      setBookForm({ ...EMPTY_BOOK_FORM, image_urls: [] })
     }
     setBookDialogOpen(true)
   }
@@ -266,23 +300,31 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
         price: Number(bookForm.price), original_price: Number(bookForm.original_price),
         discount_tag: bookForm.discount_tag === 'None' ? null : bookForm.discount_tag,
         condition: bookForm.condition, stock_quantity: Number(bookForm.stock_quantity),
-        image_urls: bookForm.image_urls.split('\n').map(u => u.trim()).filter(Boolean),
+        image_urls: bookForm.image_urls,
         isbn: bookForm.isbn.trim() || null, publisher: bookForm.publisher.trim() || null,
         edition: bookForm.edition.trim() || null, language: bookForm.language.trim() || 'English',
         description: bookForm.description.trim() || null,
         active: bookForm.active, featured: bookForm.featured,
       }
-      if (editingBook) {
-        const { error } = await supabase.from('books').update(payload).eq('id', editingBook.id)
-        if (error) throw error
-        toast.success('Book updated')
-      } else {
-        const { error } = await supabase.from('books').insert(payload)
-        if (error) throw error
-        toast.success('Book created')
-      }
+
+      const res = editingBook
+        ? await fetch('/api/admin/books', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: editingBook.id, ...payload }),
+          })
+        : await fetch('/api/admin/books', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to save book')
+
+      toast.success(editingBook ? 'Book updated' : 'Book created')
       setBookDialogOpen(false)
-      await refreshTable('books')
+      await fetchAll()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to save book')
     } finally {
@@ -299,12 +341,17 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
     if (!deleteTarget) return
     setDeleting(true)
     try {
-      const { error } = await supabase.from(deleteTarget.type).delete().eq('id', deleteTarget.id)
-      if (error) throw error
+      const tableType = deleteTarget.type === 'hero_slides' ? 'slides' : deleteTarget.type
+      const res = await fetch(`/api/admin/${tableType}?id=${deleteTarget.id}`, {
+        method: 'DELETE',
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to delete')
+
       toast.success(`${deleteTarget.label} deleted`)
       setDeleteDialogOpen(false)
       setDeleteTarget(null)
-      await refreshTable(deleteTarget.type)
+      await fetchAll()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete')
     } finally {
@@ -327,16 +374,24 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
     if (!editingOrder) return
     setOrderSaving(true)
     try {
-      const { error } = await supabase.from('orders').update({
-        order_status: orderForm.order_status, payment_status: orderForm.payment_status,
-        tracking_url: orderForm.tracking_url.trim() || null,
-        tracking_number: orderForm.tracking_number.trim() || null,
-        admin_notes: orderForm.admin_notes.trim() || null,
-      }).eq('id', editingOrder.id)
-      if (error) throw error
+      const res = await fetch('/api/admin/orders', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingOrder.id,
+          order_status: orderForm.order_status,
+          payment_status: orderForm.payment_status,
+          tracking_url: orderForm.tracking_url.trim() || null,
+          tracking_number: orderForm.tracking_number.trim() || null,
+          admin_notes: orderForm.admin_notes.trim() || null,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to update order')
+
       toast.success('Order updated')
       setOrderDialogOpen(false)
-      await refreshTable('orders')
+      await fetchAll()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to update order')
     } finally {
@@ -373,17 +428,25 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
         image_url: slideForm.image_url.trim() || null,
         sort_order: Number(slideForm.sort_order), active: slideForm.active,
       }
-      if (editingSlide) {
-        const { error } = await supabase.from('hero_slides').update(payload).eq('id', editingSlide.id)
-        if (error) throw error
-        toast.success('Slide updated')
-      } else {
-        const { error } = await supabase.from('hero_slides').insert(payload)
-        if (error) throw error
-        toast.success('Slide created')
-      }
+
+      const res = editingSlide
+        ? await fetch('/api/admin/slides', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: editingSlide.id, ...payload }),
+          })
+        : await fetch('/api/admin/slides', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to save slide')
+
+      toast.success(editingSlide ? 'Slide updated' : 'Slide created')
       setSlideDialogOpen(false)
-      await refreshTable('hero_slides')
+      await fetchAll()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to save slide')
     } finally {
@@ -396,12 +459,19 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
     const edit = requestEdits[req.id] || { status: req.status, reply: req.admin_reply || '', offer_price: '' }
     setRequestSaving(prev => ({ ...prev, [req.id]: true }))
     try {
-      const { error } = await supabase.from('book_requests').update({
-        status: edit.status, admin_reply: edit.reply.trim() || null,
-      }).eq('id', req.id)
-      if (error) throw error
+      const res = await fetch('/api/admin/requests', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'book_requests', id: req.id,
+          status: edit.status, admin_reply: edit.reply.trim() || null,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to update')
+
       toast.success('Book request updated')
-      await refreshTable('book_requests')
+      await fetchAll()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to update')
     } finally {
@@ -413,14 +483,21 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
     const edit = requestEdits[req.id] || { status: req.status, reply: req.admin_reply || '', offer_price: String(req.offer_price || '') }
     setRequestSaving(prev => ({ ...prev, [req.id]: true }))
     try {
-      const { error } = await supabase.from('sell_requests').update({
-        status: edit.status,
-        offer_price: edit.offer_price ? Number(edit.offer_price) : null,
-        admin_reply: edit.reply.trim() || null,
-      }).eq('id', req.id)
-      if (error) throw error
+      const res = await fetch('/api/admin/requests', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'sell_requests', id: req.id,
+          status: edit.status,
+          offer_price: edit.offer_price ? Number(edit.offer_price) : null,
+          admin_reply: edit.reply.trim() || null,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to update')
+
       toast.success('Sell request updated')
-      await refreshTable('sell_requests')
+      await fetchAll()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to update')
     } finally {
@@ -432,8 +509,13 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
   const updateSetting = async (key: string, value: string) => {
     setSettings(prev => ({ ...prev, [key]: value }))
     try {
-      const { error } = await supabase.from('site_settings').upsert({ key, value }, { onConflict: 'key' })
-      if (error) throw error
+      const res = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, value }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to save')
     } catch {
       toast.error(`Failed to save ${key}`)
     }
@@ -1159,10 +1241,65 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
                 <Input className={IC} value={bookForm.edition} onChange={e => setBookForm(p => ({ ...p, edition: e.target.value }))} placeholder="Edition" />
               </div>
             </div>
+
+            {/* Image Upload */}
             <div className="space-y-2">
-              <Label className={LC}>Image URLs (one per line)</Label>
-              <Textarea className={IC} rows={3} value={bookForm.image_urls} onChange={e => setBookForm(p => ({ ...p, image_urls: e.target.value }))} placeholder="https://..." />
+              <Label className={LC}>
+                Images ({bookForm.image_urls.length}/{MAX_IMAGES})
+              </Label>
+              <div className="space-y-3">
+                {/* Preview Thumbnails */}
+                {bookForm.image_urls.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {bookForm.image_urls.map((url, idx) => (
+                      <div key={idx} className="relative group w-20 h-20 rounded-lg overflow-hidden border border-white/10">
+                        <img src={url} alt={`Book image ${idx + 1}`} className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(idx)}
+                          className="absolute top-1 right-1 bg-red-500/80 hover:bg-red-500 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="size-3 text-white" />
+                        </button>
+                        <span className="absolute bottom-1 left-1 text-[10px] text-white/60 bg-black/50 rounded px-1">
+                          {idx === 0 ? 'Cover' : `#${idx + 1}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Upload Button */}
+                {bookForm.image_urls.length < MAX_IMAGES && (
+                  <div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      multiple
+                      className="hidden"
+                      onChange={handleImageUpload}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-2 px-4 py-3 rounded-lg border-2 border-dashed border-white/10 text-white/40 hover:text-white/60 hover:border-white/20 transition-colors w-full justify-center"
+                    >
+                      <Upload className="size-4" />
+                      <span className="text-sm">
+                        {bookForm.image_urls.length === 0
+                          ? 'Click to upload images (JPG, PNG, WebP)'
+                          : 'Add more images'}
+                      </span>
+                    </button>
+                    <p className="text-xs text-white/20 mt-1">
+                      Max {MAX_IMAGES} images, 2MB each. First image will be the cover.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
+
             <div className="space-y-2">
               <Label className={LC}>Description</Label>
               <Textarea className={IC} rows={3} value={bookForm.description} onChange={e => setBookForm(p => ({ ...p, description: e.target.value }))} placeholder="Book description..." />
@@ -1378,7 +1515,6 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
     </div>
   )
 }

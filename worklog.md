@@ -108,3 +108,25 @@ Stage Summary:
 - Image delete button now always visible with red X icon and hover scale effect
 - All empty states show icons and helpful messages
 - Admin dashboard shows clear status banners about RLS health
+
+---
+Task ID: 4
+Agent: General Purpose Agent
+Task: Fix public APIs to use service role key and seed demo data
+
+Work Log:
+- Changed `/api/books/route.ts` to use `createAdminClient` from `@/lib/supabase/admin` (bypasses RLS)
+- Changed `/api/hero-slides/route.ts` to use `createAdminClient` from `@/lib/supabase/admin` (bypasses RLS)
+- Changed `/api/settings/route.ts` to use `createAdminClient` from `@/lib/supabase/admin` (bypasses RLS)
+- Rewrote `/api/seed/route.ts` with full demo data: 6 Indian exam prep books (H.C. Verma, Morrison & Boyd, R.D. Sharma, NCERT Physics, Nishit K. Sinha, M. Laxmikanth), 3 hero slides, and 5 site settings
+- Fixed discount_tag constraint issue: database only accepts '50% OFF' or '60% OFF' (not '55% OFF'), updated seed data accordingly
+- Made seed idempotent: uses upsert with onConflict fallback to insert for each table (books by title, hero_slides by title, site_settings by key)
+- Successfully seeded database via `POST /api/seed`
+- Verified all three public APIs return data correctly: /api/books (22 books), /api/hero-slides (9 slides), /api/settings (9 settings)
+- Verified homepage renders correctly with loading state → data fetch pattern
+- Lint passes clean, no errors
+
+Stage Summary:
+- All public APIs now use service role key (RLS bypassed) instead of anon key
+- Database seeded with 6 demo books, 3 hero slides, and 5 site settings
+- Seed endpoint is idempotent and handles constraint errors gracefully

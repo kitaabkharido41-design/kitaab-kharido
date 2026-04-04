@@ -60,7 +60,7 @@ export function AdminDashboardClient() {
           return
         }
 
-        // Not admin - try auto-granting
+        // Not admin — try auto-granting
         console.log('[Admin] Not admin, attempting auto-grant...')
         await attemptGrant()
       } catch (err) {
@@ -72,9 +72,10 @@ export function AdminDashboardClient() {
     checkAdmin()
   }, [router])
 
+  // Loading
   if (checking) {
     return (
-      <div className="fixed inset-0 z-40 bg-navy flex items-center justify-center">
+      <div className="h-screen bg-[#060d1f] flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="size-8 text-amber animate-spin mx-auto mb-4" />
           <p className="text-white/60">
@@ -85,9 +86,10 @@ export function AdminDashboardClient() {
     )
   }
 
+  // Not logged in
   if (!userId) {
     return (
-      <div className="fixed inset-0 z-40 bg-navy flex items-center justify-center px-4">
+      <div className="h-screen bg-[#060d1f] flex items-center justify-center px-4">
         <div className="text-center max-w-md">
           <div className="w-20 h-20 rounded-2xl bg-amber/10 flex items-center justify-center mx-auto mb-6">
             <LogIn className="size-10 text-amber" />
@@ -105,9 +107,10 @@ export function AdminDashboardClient() {
     )
   }
 
+  // Not admin
   if (!isAdmin) {
     return (
-      <div className="fixed inset-0 z-40 bg-navy flex items-center justify-center px-4">
+      <div className="h-screen bg-[#060d1f] flex items-center justify-center px-4">
         <div className="text-center max-w-md">
           <div className="w-20 h-20 rounded-2xl bg-red-500/10 flex items-center justify-center mx-auto mb-6">
             <ShieldAlert className="size-10 text-red-400" />
@@ -115,7 +118,7 @@ export function AdminDashboardClient() {
           <h1 className="text-2xl font-bold text-white mb-3">Admin Setup Required</h1>
           <p className="text-white/50 mb-2">Your account needs admin privileges.</p>
           {grantError && (
-            <p className="text-white/30 text-xs mb-4 bg-white/5 rounded-lg p-3">
+            <p className="text-white/30 text-xs mb-4 bg-white/5 rounded-lg p-3 text-left font-mono break-all">
               {grantError}
             </p>
           )}
@@ -130,35 +133,13 @@ WHERE id = '${userId}';`}</pre>
             </div>
           </div>
           <div className="flex flex-col gap-3">
-            <Button
-              onClick={attemptGrant}
-              disabled={granting}
-              className="bg-amber hover:bg-amber-light text-black font-semibold px-8"
-            >
-              {granting ? (
-                <>
-                  <Loader2 className="size-4 animate-spin mr-2" />
-                  Retrying...
-                </>
-              ) : (
-                <>
-                  <ShieldCheck className="size-4 mr-2" />
-                  Try Auto-Grant
-                </>
-              )}
+            <Button onClick={attemptGrant} disabled={granting} className="bg-amber hover:bg-amber-light text-black font-semibold px-8">
+              {granting ? <><Loader2 className="size-4 animate-spin mr-2" />Retrying...</> : <><ShieldCheck className="size-4 mr-2" />Try Auto-Grant</>}
             </Button>
-            <Button
-              onClick={() => router.push('/admin/login')}
-              variant="outline"
-              className="border-white/10 text-white/60 hover:text-white hover:bg-white/5"
-            >
+            <Button onClick={() => router.push('/admin/login')} variant="outline" className="border-white/10 text-white/60 hover:text-white hover:bg-white/5">
               Try Different Account
             </Button>
-            <Button
-              onClick={() => router.push('/')}
-              variant="ghost"
-              className="text-white/30 hover:text-white/50"
-            >
+            <Button onClick={() => router.push('/')} variant="ghost" className="text-white/30 hover:text-white/50">
               Back to Home
             </Button>
           </div>
@@ -167,5 +148,6 @@ WHERE id = '${userId}';`}</pre>
     )
   }
 
+  // Admin — show dashboard
   return <AdminDashboard userId={userId} />
 }

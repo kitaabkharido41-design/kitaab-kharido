@@ -4,8 +4,7 @@ import "./globals.css";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { GlobalModals } from "@/components/providers/global-modals";
-import { Navbar } from "@/components/layout/navbar";
-import { Footer } from "@/components/layout/footer";
+import { SiteLayout } from "@/components/layout/site-layout";
 
 const sora = Sora({
   variable: "--font-sora",
@@ -43,12 +42,8 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${sora.variable} font-sans antialiased`}>
         <AuthProvider>
-          <div className="min-h-screen flex flex-col bg-navy text-foreground">
-            <Navbar />
-            <main className="flex-1">{children}</main>
-            <Footer />
-            <GlobalModals />
-          </div>
+          <SiteLayout>{children}</SiteLayout>
+          <GlobalModals />
         </AuthProvider>
         <Toaster
           position="top-center"

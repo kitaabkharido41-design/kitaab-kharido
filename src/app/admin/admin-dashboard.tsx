@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type {
   Book, HeroSlide, Order, OrderItem, BookRequest, SellRequest, SiteSetting
@@ -8,7 +8,7 @@ import type {
 import {
   LayoutDashboard, BookOpen, ShoppingBag, ImageIcon, BookOpenText,
   IndianRupee, Settings, ArrowLeft, Menu, Plus, Pencil, Trash2,
-  Loader2, Package, DollarSign, Clock, BookX, RefreshCw, Save, Eye, LogOut
+  Loader2, Package, DollarSign, Clock, BookX, RefreshCw, Search, LogOut
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -38,15 +38,9 @@ import { toast } from 'sonner'
 
 type TabId = 'dashboard' | 'books' | 'orders' | 'slides' | 'book-requests' | 'sell-requests' | 'settings'
 
-interface NavItem {
-  id: TabId
-  label: string
-  icon: React.ReactNode
-}
-
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const NAV_ITEMS: NavItem[] = [
+const NAV_ITEMS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="size-4" /> },
   { id: 'books', label: 'Books', icon: <BookOpen className="size-4" /> },
   { id: 'orders', label: 'Orders', icon: <ShoppingBag className="size-4" /> },
@@ -73,6 +67,16 @@ const PAYMENT_STATUS_COLORS: Record<string, string> = {
   refunded: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
 }
 
+const REQUEST_STATUS_COLORS: Record<string, string> = {
+  pending: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+  found: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  not_available: 'bg-red-500/20 text-red-400 border-red-500/30',
+  fulfilled: 'bg-green-500/20 text-green-400 border-green-500/30',
+  reviewed: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  accepted: 'bg-green-500/20 text-green-400 border-green-500/30',
+  rejected: 'bg-red-500/20 text-red-400 border-red-500/30',
+}
+
 const CATEGORIES = ['Academic', 'Fiction', 'Self-Help', 'Others']
 const CONDITIONS = ['Like New', 'Good', 'Fair']
 const DISCOUNT_TAGS = ['None', '50% OFF', '60% OFF']
@@ -81,24 +85,27 @@ const PAYMENT_STATUSES = ['pending', 'paid', 'failed', 'refunded']
 const BOOK_REQUEST_STATUSES = ['pending', 'found', 'not_available', 'fulfilled']
 const SELL_REQUEST_STATUSES = ['pending', 'reviewed', 'accepted', 'rejected']
 
-const emptyBookForm = {
+const EMPTY_BOOK_FORM = {
   title: '', author: '', category: 'Academic', sub_category: '',
   price: 0, original_price: 0, discount_tag: 'None', condition: 'Like New',
   stock_quantity: 1, image_urls: '', isbn: '', publisher: '', edition: '',
   language: 'English', description: '', active: true, featured: false,
 }
 
-const emptySlideForm = {
+const EMPTY_SLIDE_FORM = {
   title: '', subtitle: '', cta_button_text: '', cta_link: '',
   background_color: '#1a2744', image_url: '', sort_order: 0, active: true,
 }
+
+const IC = "bg-white/5 border-white/10 text-white placeholder:text-white/30 focus-visible:border-amber/50 rounded-md"
+const LC = "text-xs uppercase tracking-wider text-amber/80 font-semibold"
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export function AdminDashboard({ userId }: { userId: string }) {
   const supabase = createClient()
 
-  // ── State ───────────────────────────────────────────────────────────
+  // Navigation
   const [activeTab, setActiveTab] = useState<TabId>('dashboard')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -111,10 +118,14 @@ export function AdminDashboard({ userId }: { userId: string }) {
   const [sellRequests, setSellRequests] = useState<SellRequest[]>([])
   const [settings, setSettings] = useState<Record<string, string>>({})
 
+  // Book search & filter
+  const [bookSearch, setBookSearch] = useState('')
+  const [bookCategoryFilter, setBookCategoryFilter] = useState('all')
+
   // Book dialog
   const [bookDialogOpen, setBookDialogOpen] = useState(false)
   const [editingBook, setEditingBook] = useState<Book | null>(null)
-  const [bookForm, setBookForm] = useState(emptyBookForm)
+  const [bookForm, setBookForm] = useState(EMPTY_BOOK_FORM)
   const [bookSaving, setBookSaving] = useState(false)
 
   // Delete dialog
@@ -133,7 +144,7 @@ export function AdminDashboard({ userId }: { userId: string }) {
   // Slide dialog
   const [slideDialogOpen, setSlideDialogOpen] = useState(false)
   const [editingSlide, setEditingSlide] = useState<HeroSlide | null>(null)
-  const [slideForm, setSlideForm] = useState(emptySlideForm)
+  const [slideForm, setSlideForm] = useState(EMPTY_SLIDE_FORM)
   const [slideSaving, setSlideSaving] = useState(false)
 
   // Request inline edits
@@ -177,46 +188,67 @@ export function AdminDashboard({ userId }: { userId: string }) {
   const formatCurrency = (amount: number) => `₹${amount.toLocaleString('en-IN')}`
   const formatDate = (date: string) => new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 
-  const refreshAfterMutation = useCallback(async (table: string) => {
-    const res = await supabase.from(table).select('*').order('created_at', { ascending: false })
+  const refreshTable = useCallback(async (table: string) => {
+    const q = supabase.from(table).select('*').order('created_at', { ascending: false })
+    const res = await q
     if (res.data) {
       if (table === 'books') setBooks(res.data as Book[])
       else if (table === 'orders') setOrders(res.data as Order[])
       else if (table === 'book_requests') setBookRequests(res.data as BookRequest[])
       else if (table === 'sell_requests') setSellRequests(res.data as SellRequest[])
       else if (table === 'hero_slides') {
-        const sorted = (res.data as HeroSlide[]).sort((a, b) => a.sort_order - b.sort_order)
-        setSlides(sorted)
+        setSlides((res.data as HeroSlide[]).sort((a, b) => a.sort_order - b.sort_order))
       }
     }
   }, [supabase])
+
+  // ── Logout ──────────────────────────────────────────────────────────
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    window.location.href = '/admin/login'
+  }
+
+  // ── Computed ────────────────────────────────────────────────────────
+  const totalBooks = books.length
+  const totalOrders = orders.length
+  const revenue = orders.filter(o => o.payment_status === 'paid').reduce((sum, o) => sum + o.grand_total, 0)
+  const pendingOrders = orders.filter(o => o.order_status === 'pending').length
+  const pendingBookRequests = bookRequests.filter(r => r.status === 'pending').length
+  const pendingSellRequests = sellRequests.filter(r => r.status === 'pending').length
+
+  const filteredBooks = useMemo(() => {
+    let result = books
+    if (bookSearch.trim()) {
+      const q = bookSearch.toLowerCase()
+      result = result.filter(b =>
+        b.title.toLowerCase().includes(q) ||
+        b.author.toLowerCase().includes(q) ||
+        (b.isbn && b.isbn.toLowerCase().includes(q))
+      )
+    }
+    if (bookCategoryFilter !== 'all') {
+      result = result.filter(b => b.category === bookCategoryFilter)
+    }
+    return result
+  }, [books, bookSearch, bookCategoryFilter])
 
   // ── Book CRUD ───────────────────────────────────────────────────────
   const openBookDialog = (book?: Book) => {
     if (book) {
       setEditingBook(book)
       setBookForm({
-        title: book.title,
-        author: book.author,
-        category: book.category,
-        sub_category: book.sub_category || '',
-        price: book.price,
-        original_price: book.original_price,
-        discount_tag: book.discount_tag || 'None',
-        condition: book.condition,
-        stock_quantity: book.stock_quantity,
-        image_urls: (book.image_urls || []).join('\n'),
-        isbn: book.isbn || '',
-        publisher: book.publisher || '',
-        edition: book.edition || '',
-        language: book.language || 'English',
-        description: book.description || '',
-        active: book.active,
-        featured: book.featured,
+        title: book.title, author: book.author, category: book.category,
+        sub_category: book.sub_category || '', price: book.price,
+        original_price: book.original_price, discount_tag: book.discount_tag || 'None',
+        condition: book.condition, stock_quantity: book.stock_quantity,
+        image_urls: (book.image_urls || []).join('\n'), isbn: book.isbn || '',
+        publisher: book.publisher || '', edition: book.edition || '',
+        language: book.language || 'English', description: book.description || '',
+        active: book.active, featured: book.featured,
       })
     } else {
       setEditingBook(null)
-      setBookForm(emptyBookForm)
+      setBookForm({ ...EMPTY_BOOK_FORM })
     }
     setBookDialogOpen(true)
   }
@@ -229,23 +261,16 @@ export function AdminDashboard({ userId }: { userId: string }) {
     setBookSaving(true)
     try {
       const payload = {
-        title: bookForm.title.trim(),
-        author: bookForm.author.trim(),
-        category: bookForm.category,
-        sub_category: bookForm.sub_category.trim() || null,
-        price: Number(bookForm.price),
-        original_price: Number(bookForm.original_price),
+        title: bookForm.title.trim(), author: bookForm.author.trim(),
+        category: bookForm.category, sub_category: bookForm.sub_category.trim() || null,
+        price: Number(bookForm.price), original_price: Number(bookForm.original_price),
         discount_tag: bookForm.discount_tag === 'None' ? null : bookForm.discount_tag,
-        condition: bookForm.condition,
-        stock_quantity: Number(bookForm.stock_quantity),
+        condition: bookForm.condition, stock_quantity: Number(bookForm.stock_quantity),
         image_urls: bookForm.image_urls.split('\n').map(u => u.trim()).filter(Boolean),
-        isbn: bookForm.isbn.trim() || null,
-        publisher: bookForm.publisher.trim() || null,
-        edition: bookForm.edition.trim() || null,
-        language: bookForm.language.trim() || 'English',
+        isbn: bookForm.isbn.trim() || null, publisher: bookForm.publisher.trim() || null,
+        edition: bookForm.edition.trim() || null, language: bookForm.language.trim() || 'English',
         description: bookForm.description.trim() || null,
-        active: bookForm.active,
-        featured: bookForm.featured,
+        active: bookForm.active, featured: bookForm.featured,
       }
       if (editingBook) {
         const { error } = await supabase.from('books').update(payload).eq('id', editingBook.id)
@@ -257,10 +282,9 @@ export function AdminDashboard({ userId }: { userId: string }) {
         toast.success('Book created')
       }
       setBookDialogOpen(false)
-      await refreshAfterMutation('books')
+      await refreshTable('books')
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to save book'
-      toast.error(msg)
+      toast.error(err instanceof Error ? err.message : 'Failed to save book')
     } finally {
       setBookSaving(false)
     }
@@ -280,10 +304,9 @@ export function AdminDashboard({ userId }: { userId: string }) {
       toast.success(`${deleteTarget.label} deleted`)
       setDeleteDialogOpen(false)
       setDeleteTarget(null)
-      await refreshAfterMutation(deleteTarget.type)
+      await refreshTable(deleteTarget.type)
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to delete'
-      toast.error(msg)
+      toast.error(err instanceof Error ? err.message : 'Failed to delete')
     } finally {
       setDeleting(false)
     }
@@ -293,10 +316,8 @@ export function AdminDashboard({ userId }: { userId: string }) {
   const openOrderDialog = (order: Order) => {
     setEditingOrder(order)
     setOrderForm({
-      order_status: order.order_status,
-      payment_status: order.payment_status,
-      tracking_url: order.tracking_url || '',
-      tracking_number: order.tracking_number || '',
+      order_status: order.order_status, payment_status: order.payment_status,
+      tracking_url: order.tracking_url || '', tracking_number: order.tracking_number || '',
       admin_notes: order.admin_notes || '',
     })
     setOrderDialogOpen(true)
@@ -307,8 +328,7 @@ export function AdminDashboard({ userId }: { userId: string }) {
     setOrderSaving(true)
     try {
       const { error } = await supabase.from('orders').update({
-        order_status: orderForm.order_status,
-        payment_status: orderForm.payment_status,
+        order_status: orderForm.order_status, payment_status: orderForm.payment_status,
         tracking_url: orderForm.tracking_url.trim() || null,
         tracking_number: orderForm.tracking_number.trim() || null,
         admin_notes: orderForm.admin_notes.trim() || null,
@@ -316,10 +336,9 @@ export function AdminDashboard({ userId }: { userId: string }) {
       if (error) throw error
       toast.success('Order updated')
       setOrderDialogOpen(false)
-      await refreshAfterMutation('orders')
+      await refreshTable('orders')
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to update order'
-      toast.error(msg)
+      toast.error(err instanceof Error ? err.message : 'Failed to update order')
     } finally {
       setOrderSaving(false)
     }
@@ -330,38 +349,29 @@ export function AdminDashboard({ userId }: { userId: string }) {
     if (slide) {
       setEditingSlide(slide)
       setSlideForm({
-        title: slide.title,
-        subtitle: slide.subtitle || '',
-        cta_button_text: slide.cta_button_text || '',
-        cta_link: slide.cta_link || '',
-        background_color: slide.background_color,
-        image_url: slide.image_url || '',
-        sort_order: slide.sort_order,
-        active: slide.active,
+        title: slide.title, subtitle: slide.subtitle || '',
+        cta_button_text: slide.cta_button_text || '', cta_link: slide.cta_link || '',
+        background_color: slide.background_color, image_url: slide.image_url || '',
+        sort_order: slide.sort_order, active: slide.active,
       })
     } else {
       setEditingSlide(null)
-      setSlideForm({ ...emptySlideForm, sort_order: slides.length })
+      setSlideForm({ ...EMPTY_SLIDE_FORM, sort_order: slides.length })
     }
     setSlideDialogOpen(true)
   }
 
   const saveSlide = async () => {
-    if (!slideForm.title.trim()) {
-      toast.error('Title is required')
-      return
-    }
+    if (!slideForm.title.trim()) { toast.error('Title is required'); return }
     setSlideSaving(true)
     try {
       const payload = {
-        title: slideForm.title.trim(),
-        subtitle: slideForm.subtitle.trim() || null,
+        title: slideForm.title.trim(), subtitle: slideForm.subtitle.trim() || null,
         cta_button_text: slideForm.cta_button_text.trim() || null,
         cta_link: slideForm.cta_link.trim() || null,
         background_color: slideForm.background_color,
         image_url: slideForm.image_url.trim() || null,
-        sort_order: Number(slideForm.sort_order),
-        active: slideForm.active,
+        sort_order: Number(slideForm.sort_order), active: slideForm.active,
       }
       if (editingSlide) {
         const { error } = await supabase.from('hero_slides').update(payload).eq('id', editingSlide.id)
@@ -373,10 +383,9 @@ export function AdminDashboard({ userId }: { userId: string }) {
         toast.success('Slide created')
       }
       setSlideDialogOpen(false)
-      await refreshAfterMutation('hero_slides')
+      await refreshTable('hero_slides')
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to save slide'
-      toast.error(msg)
+      toast.error(err instanceof Error ? err.message : 'Failed to save slide')
     } finally {
       setSlideSaving(false)
     }
@@ -388,15 +397,13 @@ export function AdminDashboard({ userId }: { userId: string }) {
     setRequestSaving(prev => ({ ...prev, [req.id]: true }))
     try {
       const { error } = await supabase.from('book_requests').update({
-        status: edit.status,
-        admin_reply: edit.reply.trim() || null,
+        status: edit.status, admin_reply: edit.reply.trim() || null,
       }).eq('id', req.id)
       if (error) throw error
       toast.success('Book request updated')
-      await refreshAfterMutation('book_requests')
+      await refreshTable('book_requests')
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to update'
-      toast.error(msg)
+      toast.error(err instanceof Error ? err.message : 'Failed to update')
     } finally {
       setRequestSaving(prev => ({ ...prev, [req.id]: false }))
     }
@@ -413,10 +420,9 @@ export function AdminDashboard({ userId }: { userId: string }) {
       }).eq('id', req.id)
       if (error) throw error
       toast.success('Sell request updated')
-      await refreshAfterMutation('sell_requests')
+      await refreshTable('sell_requests')
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to update'
-      toast.error(msg)
+      toast.error(err instanceof Error ? err.message : 'Failed to update')
     } finally {
       setRequestSaving(prev => ({ ...prev, [req.id]: false }))
     }
@@ -426,61 +432,47 @@ export function AdminDashboard({ userId }: { userId: string }) {
   const updateSetting = async (key: string, value: string) => {
     setSettings(prev => ({ ...prev, [key]: value }))
     try {
-      const { error } = await supabase
-        .from('site_settings')
-        .upsert({ key, value }, { onConflict: 'key' })
+      const { error } = await supabase.from('site_settings').upsert({ key, value }, { onConflict: 'key' })
       if (error) throw error
-    } catch (err) {
-      console.error('Failed to save setting:', err)
+    } catch {
       toast.error(`Failed to save ${key}`)
     }
   }
 
-  // ── Computed ────────────────────────────────────────────────────────
-  const totalBooks = books.length
-  const totalOrders = orders.length
-  const revenue = orders.filter(o => o.payment_status === 'paid').reduce((sum, o) => sum + o.grand_total, 0)
-  const pendingOrders = orders.filter(o => o.order_status === 'pending').length
-  const pendingBookRequests = bookRequests.filter(r => r.status === 'pending').length
-  const pendingSellRequests = sellRequests.filter(r => r.status === 'pending').length
-
-  // ── Render Helpers ──────────────────────────────────────────────────
-  const inputClass = "bg-white/5 border-white/10 text-white placeholder:text-white/30 focus-visible:border-amber/50 rounded-md"
-  const labelClass = "text-xs uppercase tracking-wider text-amber/80 font-semibold"
-
+  // ── Sidebar Nav ─────────────────────────────────────────────────────
   const sidebarNav = (onClick?: () => void) => (
     <nav className="flex flex-col gap-1 px-3">
-      {NAV_ITEMS.map(item => (
-        <button
-          key={item.id}
-          onClick={() => { setActiveTab(item.id); onClick?.() }}
-          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-            activeTab === item.id
-              ? 'bg-amber/10 text-amber border-l-2 border-amber'
-              : 'text-white/60 hover:bg-white/5 hover:text-white'
-          }`}
-        >
-          {item.icon}
-          {item.label}
-          {item.id === 'book-requests' && pendingBookRequests > 0 && (
-            <Badge variant="secondary" className="ml-auto bg-amber/20 text-amber text-[10px] px-1.5">
-              {pendingBookRequests}
-            </Badge>
-          )}
-          {item.id === 'sell-requests' && pendingSellRequests > 0 && (
-            <Badge variant="secondary" className="ml-auto bg-amber/20 text-amber text-[10px] px-1.5">
-              {pendingSellRequests}
-            </Badge>
-          )}
-        </button>
-      ))}
+      {NAV_ITEMS.map(item => {
+        const badge = item.id === 'book-requests' ? pendingBookRequests
+          : item.id === 'sell-requests' ? pendingSellRequests
+          : item.id === 'orders' ? pendingOrders : 0
+        return (
+          <button
+            key={item.id}
+            onClick={() => { setActiveTab(item.id); onClick?.() }}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              activeTab === item.id
+                ? 'bg-amber/10 text-amber border-l-2 border-amber'
+                : 'text-white/60 hover:bg-white/5 hover:text-white'
+            }`}
+          >
+            {item.icon}
+            {item.label}
+            {badge > 0 && (
+              <Badge variant="secondary" className="ml-auto bg-amber/20 text-amber text-[10px] px-1.5">
+                {badge}
+              </Badge>
+            )}
+          </button>
+        )
+      })}
     </nav>
   )
 
-  // ── Loading Skeleton ────────────────────────────────────────────────
+  // ── Loading ─────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="fixed inset-0 z-50 bg-[#060d1f] flex items-center justify-center">
+      <div className="h-screen bg-[#060d1f] flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="size-8 text-amber animate-spin mx-auto mb-4" />
           <p className="text-white/60">Loading admin panel...</p>
@@ -489,29 +481,42 @@ export function AdminDashboard({ userId }: { userId: string }) {
     )
   }
 
-  // ── Main Render ─────────────────────────────────────────────────────
+  // ── Status Badge Helper ─────────────────────────────────────────────
+  const StatusBadge = ({ status, colorMap }: { status: string; colorMap: Record<string, string> }) => (
+    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${colorMap[status] || 'bg-white/10 text-white/40 border-white/10'}`}>
+      {status.replace(/_/g, ' ')}
+    </span>
+  )
+
+  // ═══════════════════════════════════════════════════════════════════
+  // MAIN RENDER
+  // ═══════════════════════════════════════════════════════════════════
   return (
-    <div className="fixed inset-0 z-50 bg-[#060d1f] flex overflow-hidden">
-      {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex w-64 flex-shrink-0 flex-col bg-[#040a18] border-r border-white/5">
+    <div className="h-screen flex bg-[#060d1f] overflow-hidden">
+
+      {/* ─── Desktop Sidebar ────────────────────────────────────────── */}
+      <aside className="hidden md:flex w-64 flex-shrink-0 flex-col bg-[#040a18] border-r border-white/5">
         <div className="p-6 border-b border-white/5">
           <h1 className="text-xl font-bold">
             <span className="text-amber">KK</span>{' '}
             <span className="text-white">Admin</span>
           </h1>
+          <p className="text-xs text-white/30 mt-1">Kitaab Kharido</p>
         </div>
         <div className="flex-1 py-4 overflow-y-auto">
           {sidebarNav()}
         </div>
-        <div className="p-4 border-t border-white/5">
-          <a href="/" className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors">
-            <ArrowLeft className="size-4" />
-            Back to Site
+        <div className="p-4 border-t border-white/5 space-y-2">
+          <a href="/" className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors px-2 py-1.5 rounded-md hover:bg-white/5">
+            <ArrowLeft className="size-4" /> Back to Site
           </a>
+          <button onClick={handleLogout} className="flex items-center gap-2 text-sm text-red-400/70 hover:text-red-400 transition-colors px-2 py-1.5 rounded-md hover:bg-red-400/10 w-full">
+            <LogOut className="size-4" /> Logout
+          </button>
         </div>
       </aside>
 
-      {/* Mobile Sidebar Sheet */}
+      {/* ─── Mobile Sidebar Sheet ───────────────────────────────────── */}
       <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
         <SheetContent side="left" className="bg-[#040a18] border-r border-white/5 w-72 p-0">
           <SheetHeader className="p-6 border-b border-white/5">
@@ -521,26 +526,28 @@ export function AdminDashboard({ userId }: { userId: string }) {
             </SheetTitle>
             <SheetDescription className="text-white/40">Administration Panel</SheetDescription>
           </SheetHeader>
-          <div className="py-4">
+          <div className="flex-1 py-4">
             {sidebarNav(() => setMobileMenuOpen(false))}
           </div>
-          <div className="p-4 border-t border-white/5">
-            <a href="/" className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors">
-              <ArrowLeft className="size-4" />
-              Back to Site
+          <div className="p-4 border-t border-white/5 space-y-2">
+            <a href="/" className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors px-2 py-1.5 rounded-md hover:bg-white/5">
+              <ArrowLeft className="size-4" /> Back to Site
             </a>
+            <button onClick={handleLogout} className="flex items-center gap-2 text-sm text-red-400/70 hover:text-red-400 transition-colors px-2 py-1.5 rounded-md hover:bg-red-400/10 w-full">
+              <LogOut className="size-4" /> Logout
+            </button>
           </div>
         </SheetContent>
       </Sheet>
 
-      {/* Main Content - scrollable */}
-      <main className="flex-1 lg:ml-0 min-h-0 overflow-y-auto">
+      {/* ─── Main Content Area ──────────────────────────────────────── */}
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         {/* Top Bar */}
-        <header className="sticky top-0 z-30 bg-[#060d1f]/95 backdrop-blur-md border-b border-white/5 px-4 lg:px-8 h-14 flex items-center gap-4">
+        <header className="sticky top-0 z-30 bg-[#060d1f]/95 backdrop-blur-md border-b border-white/5 px-4 md:px-8 h-14 flex items-center gap-4 flex-shrink-0">
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden text-white/60 hover:text-white"
+            className="md:hidden text-white/60 hover:text-white"
             onClick={() => setMobileMenuOpen(true)}
           >
             <Menu className="size-5" />
@@ -549,81 +556,516 @@ export function AdminDashboard({ userId }: { userId: string }) {
             {NAV_ITEMS.find(n => n.id === activeTab)?.label || 'Dashboard'}
           </h2>
           <div className="ml-auto flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={fetchAll} className="text-white/60 hover:text-white">
-              <RefreshCw className="size-4" />
+            <Button variant="ghost" size="sm" onClick={fetchAll} disabled={loading} className="text-white/60 hover:text-white">
+              <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">Refresh</span>
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={async () => {
-                await supabase.auth.signOut()
-                window.location.href = '/admin/login'
-              }}
-              className="text-red-400/70 hover:text-red-400 hover:bg-red-400/10"
-            >
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="md:hidden text-red-400/70 hover:text-red-400 hover:bg-red-400/10">
               <LogOut className="size-4" />
-              <span className="hidden sm:inline">Logout</span>
             </Button>
           </div>
         </header>
 
-        {/* Content Area */}
-        <div className="p-4 lg:p-8">
-          {activeTab === 'dashboard' && (
-            <DashboardTab
-              totalBooks={totalBooks} totalOrders={totalOrders} revenue={revenue}
-              pendingOrders={pendingOrders} pendingBookRequests={pendingBookRequests}
-              pendingSellRequests={pendingSellRequests} orders={orders.slice(0, 10)}
-              formatCurrency={formatCurrency} formatDate={formatDate}
-              onOrderClick={openOrderDialog}
-            />
-          )}
-          {activeTab === 'books' && (
-            <BooksTab
-              books={books} formatCurrency={formatCurrency}
-              onAdd={() => openBookDialog()}
-              onEdit={(b) => openBookDialog(b)}
-              onDelete={(b) => confirmDelete('books', b.id, b.title)}
-            />
-          )}
-          {activeTab === 'orders' && (
-            <OrdersTab
-              orders={orders} formatCurrency={formatCurrency} formatDate={formatDate}
-              onOrderClick={openOrderDialog}
-            />
-          )}
-          {activeTab === 'slides' && (
-            <SlidesTab
-              slides={slides}
-              onAdd={() => openSlideDialog()}
-              onEdit={(s) => openSlideDialog(s)}
-              onDelete={(s) => confirmDelete('hero_slides', s.id, `Slide: ${s.title}`)}
-            />
-          )}
-          {activeTab === 'book-requests' && (
-            <BookRequestsTab
-              requests={bookRequests} formatDate={formatDate}
-              requestEdits={requestEdits} setRequestEdits={setRequestEdits}
-              requestSaving={requestSaving}
-              onSave={saveBookRequest}
-            />
-          )}
-          {activeTab === 'sell-requests' && (
-            <SellRequestsTab
-              requests={sellRequests} formatCurrency={formatCurrency} formatDate={formatDate}
-              requestEdits={requestEdits} setRequestEdits={setRequestEdits}
-              requestSaving={requestSaving}
-              onSave={saveSellRequest}
-            />
-          )}
-          {activeTab === 'settings' && (
-            <SettingsTab settings={settings} updateSetting={updateSetting} inputClass={inputClass} labelClass={labelClass} />
-          )}
-        </div>
-      </main>
+        {/* Scrollable Content */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-8">
 
-      {/* ── Book Dialog ─────────────────────────────────────────────── */}
+          {/* ═══════════════════════════════════════════════════════════
+              TAB: DASHBOARD
+              ═══════════════════════════════════════════════════════════ */}
+          {activeTab === 'dashboard' && (
+            <div className="space-y-6">
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  { label: 'Total Books', value: totalBooks, icon: <BookOpen className="size-5" />, color: 'text-blue-400', bg: 'bg-blue-400/10' },
+                  { label: 'Total Orders', value: totalOrders, icon: <ShoppingBag className="size-5" />, color: 'text-purple-400', bg: 'bg-purple-400/10' },
+                  { label: 'Revenue', value: formatCurrency(revenue), icon: <DollarSign className="size-5" />, color: 'text-green-400', bg: 'bg-green-400/10' },
+                  { label: 'Pending Orders', value: pendingOrders, icon: <Clock className="size-5" />, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
+                ].map(stat => (
+                  <div key={stat.label} className="bg-[#0f1730] border border-white/5 rounded-xl p-4 md:p-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className={`p-2.5 rounded-lg ${stat.bg} ${stat.color}`}>{stat.icon}</span>
+                    </div>
+                    <p className="text-2xl lg:text-3xl font-bold text-white">{stat.value}</p>
+                    <p className="text-sm text-white/40 mt-1">{stat.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Pending Requests Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div
+                  className="bg-[#0f1730] border border-white/5 rounded-xl p-4 flex items-center gap-4 cursor-pointer hover:border-amber/20 transition-colors"
+                  onClick={() => setActiveTab('book-requests')}
+                >
+                  <div className="p-3 rounded-lg bg-amber/10 text-amber"><BookX className="size-5" /></div>
+                  <div>
+                    <p className="text-xl font-bold text-white">{pendingBookRequests}</p>
+                    <p className="text-sm text-white/40">Pending Book Requests</p>
+                  </div>
+                </div>
+                <div
+                  className="bg-[#0f1730] border border-white/5 rounded-xl p-4 flex items-center gap-4 cursor-pointer hover:border-amber/20 transition-colors"
+                  onClick={() => setActiveTab('sell-requests')}
+                >
+                  <div className="p-3 rounded-lg bg-amber/10 text-amber"><Package className="size-5" /></div>
+                  <div>
+                    <p className="text-xl font-bold text-white">{pendingSellRequests}</p>
+                    <p className="text-sm text-white/40">Pending Sell Requests</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recent Orders */}
+              <div className="bg-[#0f1730] border border-white/5 rounded-xl overflow-hidden">
+                <div className="p-4 md:p-6 border-b border-white/5">
+                  <h3 className="text-lg font-semibold text-white">Recent Orders</h3>
+                  <p className="text-sm text-white/40">Latest 10 orders</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-white/5 text-left">
+                        <th className="px-4 py-3 text-white/40 font-medium">Order #</th>
+                        <th className="px-4 py-3 text-white/40 font-medium">Date</th>
+                        <th className="px-4 py-3 text-white/40 font-medium hidden sm:table-cell">Customer</th>
+                        <th className="px-4 py-3 text-white/40 font-medium">Total</th>
+                        <th className="px-4 py-3 text-white/40 font-medium">Status</th>
+                        <th className="px-4 py-3 text-white/40 font-medium">Payment</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orders.length === 0 ? (
+                        <tr><td colSpan={6} className="px-4 py-8 text-center text-white/30">No orders yet</td></tr>
+                      ) : (
+                        orders.slice(0, 10).map(order => (
+                          <tr key={order.id} onClick={() => openOrderDialog(order)} className="border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors">
+                            <td className="px-4 py-3 text-amber font-mono text-xs">{order.order_number}</td>
+                            <td className="px-4 py-3 text-white/60">{formatDate(order.created_at)}</td>
+                            <td className="px-4 py-3 text-white hidden sm:table-cell">{order.shipping_name}</td>
+                            <td className="px-4 py-3 text-white font-medium">{formatCurrency(order.grand_total)}</td>
+                            <td className="px-4 py-3"><StatusBadge status={order.order_status} colorMap={ORDER_STATUS_COLORS} /></td>
+                            <td className="px-4 py-3"><StatusBadge status={order.payment_status} colorMap={PAYMENT_STATUS_COLORS} /></td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════════
+              TAB: BOOKS
+              ═══════════════════════════════════════════════════════════ */}
+          {activeTab === 'books' && (
+            <div className="space-y-4">
+              {/* Search & Filter Bar */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 w-full sm:w-auto">
+                  <div className="relative flex-1 max-w-sm">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-white/30" />
+                    <Input
+                      className={`${IC} pl-9`}
+                      placeholder="Search by title, author, ISBN..."
+                      value={bookSearch}
+                      onChange={e => setBookSearch(e.target.value)}
+                    />
+                  </div>
+                  <Select value={bookCategoryFilter} onValueChange={setBookCategoryFilter}>
+                    <SelectTrigger className={`${IC} w-full sm:w-40`}>
+                      <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#0f1730] border-white/10">
+                      <SelectItem value="all">All Categories</SelectItem>
+                      {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={() => openBookDialog()} className="bg-amber hover:bg-amber/90 text-black font-semibold">
+                  <Plus className="size-4" /> Add Book
+                </Button>
+              </div>
+
+              <p className="text-sm text-white/40">
+                {filteredBooks.length} of {totalBooks} books
+              </p>
+
+              {/* Books Table */}
+              <div className="bg-[#0f1730] border border-white/5 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto max-h-[calc(100vh-280px)] overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-[#0f1730] z-10">
+                      <tr className="border-b border-white/5 text-left">
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Title</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Author</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden md:table-cell">Category</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Price</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden lg:table-cell">Orig.</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden lg:table-cell">Discount</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden xl:table-cell">Condition</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden lg:table-cell">Stock</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden xl:table-cell">Active</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredBooks.length === 0 ? (
+                        <tr><td colSpan={10} className="px-4 py-8 text-center text-white/30">No books found</td></tr>
+                      ) : (
+                        filteredBooks.map(book => (
+                          <tr key={book.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                            <td className="px-4 py-3 text-white font-medium max-w-[200px] truncate">{book.title}</td>
+                            <td className="px-4 py-3 text-white/60 max-w-[150px] truncate">{book.author}</td>
+                            <td className="px-4 py-3 text-white/50 hidden md:table-cell">
+                              <Badge variant="outline" className="border-white/10 text-white/50 text-xs">{book.category}</Badge>
+                            </td>
+                            <td className="px-4 py-3 text-amber font-medium">{formatCurrency(book.price)}</td>
+                            <td className="px-4 py-3 text-white/30 line-through hidden lg:table-cell">{formatCurrency(book.original_price)}</td>
+                            <td className="px-4 py-3 hidden lg:table-cell">
+                              {book.discount_tag ? (
+                                <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">{book.discount_tag}</Badge>
+                              ) : <span className="text-white/20">&mdash;</span>}
+                            </td>
+                            <td className="px-4 py-3 text-white/50 hidden xl:table-cell">{book.condition}</td>
+                            <td className="px-4 py-3 text-white/50 hidden lg:table-cell">{book.stock_quantity}</td>
+                            <td className="px-4 py-3 hidden xl:table-cell">
+                              <span className={`inline-block w-2 h-2 rounded-full ${book.active ? 'bg-green-400' : 'bg-red-400'}`} />
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-1">
+                                <Button variant="ghost" size="icon" className="size-8 text-white/40 hover:text-amber" onClick={() => openBookDialog(book)}>
+                                  <Pencil className="size-3.5" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="size-8 text-white/40 hover:text-red-400" onClick={() => confirmDelete('books', book.id, book.title)}>
+                                  <Trash2 className="size-3.5" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════════
+              TAB: ORDERS
+              ═══════════════════════════════════════════════════════════ */}
+          {activeTab === 'orders' && (
+            <div className="space-y-4">
+              <p className="text-sm text-white/40">{orders.length} orders</p>
+              <div className="bg-[#0f1730] border border-white/5 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto max-h-[calc(100vh-220px)] overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-[#0f1730] z-10">
+                      <tr className="border-b border-white/5 text-left">
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Order #</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Date</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden md:table-cell">Customer</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden lg:table-cell">Items</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Total</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Order</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Payment</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orders.length === 0 ? (
+                        <tr><td colSpan={8} className="px-4 py-8 text-center text-white/30">No orders yet</td></tr>
+                      ) : (
+                        orders.map(order => (
+                          <tr key={order.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                            <td className="px-4 py-3 text-amber font-mono text-xs">{order.order_number}</td>
+                            <td className="px-4 py-3 text-white/60">{formatDate(order.created_at)}</td>
+                            <td className="px-4 py-3 text-white hidden md:table-cell">{order.shipping_name}</td>
+                            <td className="px-4 py-3 text-white/50 hidden lg:table-cell">{order.order_items?.length || 0}</td>
+                            <td className="px-4 py-3 text-white font-medium">{formatCurrency(order.grand_total)}</td>
+                            <td className="px-4 py-3"><StatusBadge status={order.order_status} colorMap={ORDER_STATUS_COLORS} /></td>
+                            <td className="px-4 py-3"><StatusBadge status={order.payment_status} colorMap={PAYMENT_STATUS_COLORS} /></td>
+                            <td className="px-4 py-3">
+                              <Button variant="ghost" size="icon" className="size-8 text-white/40 hover:text-amber" onClick={() => openOrderDialog(order)}>
+                                <Pencil className="size-3.5" />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════════
+              TAB: HERO SLIDES
+              ═══════════════════════════════════════════════════════════ */}
+          {activeTab === 'slides' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-white/40">{slides.length} slides</p>
+                <Button onClick={() => openSlideDialog()} className="bg-amber hover:bg-amber/90 text-black font-semibold">
+                  <Plus className="size-4" /> Add Slide
+                </Button>
+              </div>
+
+              <div className="grid gap-4">
+                {slides.length === 0 ? (
+                  <div className="bg-[#0f1730] border border-white/5 rounded-xl p-8 text-center text-white/30">No slides yet</div>
+                ) : (
+                  slides.map(slide => (
+                    <div key={slide.id} className="bg-[#0f1730] border border-white/5 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                      {slide.image_url ? (
+                        <img src={slide.image_url} alt="" className="w-24 h-16 object-cover rounded-lg flex-shrink-0" />
+                      ) : (
+                        <div className="w-24 h-16 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: slide.background_color }}>
+                          <ImageIcon className="size-6 text-white/40" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-white font-medium truncate">{slide.title}</p>
+                          <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${slide.active ? 'bg-green-400' : 'bg-red-400'}`} />
+                        </div>
+                        {slide.subtitle && <p className="text-sm text-white/40 truncate">{slide.subtitle}</p>}
+                        <p className="text-xs text-white/30 mt-1">Sort: {slide.sort_order}</p>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <Button variant="ghost" size="icon" className="size-8 text-white/40 hover:text-amber" onClick={() => openSlideDialog(slide)}>
+                          <Pencil className="size-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="size-8 text-white/40 hover:text-red-400" onClick={() => confirmDelete('hero_slides', slide.id, `Slide: ${slide.title}`)}>
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════════
+              TAB: BOOK REQUESTS
+              ═══════════════════════════════════════════════════════════ */}
+          {activeTab === 'book-requests' && (
+            <div className="space-y-4">
+              <p className="text-sm text-white/40">{bookRequests.length} requests</p>
+              <div className="bg-[#0f1730] border border-white/5 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto max-h-[calc(100vh-220px)] overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-[#0f1730] z-10">
+                      <tr className="border-b border-white/5 text-left">
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Book</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden md:table-cell">Requested By</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Date</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Status</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Reply</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bookRequests.length === 0 ? (
+                        <tr><td colSpan={6} className="px-4 py-8 text-center text-white/30">No book requests</td></tr>
+                      ) : (
+                        bookRequests.map(req => {
+                          const edit = requestEdits[req.id] || {
+                            status: req.status, reply: req.admin_reply || '', offer_price: '',
+                          }
+                          return (
+                            <tr key={req.id} className="border-b border-white/5 hover:bg-white/5 transition-colors align-top">
+                              <td className="px-4 py-3">
+                                <p className="text-white font-medium">{req.book_title}</p>
+                                {req.author && <p className="text-xs text-white/40">{req.author}</p>}
+                                {req.notes && <p className="text-xs text-white/30 mt-1">{req.notes}</p>}
+                              </td>
+                              <td className="px-4 py-3 hidden md:table-cell">
+                                <p className="text-white/70">{req.user_name || 'User'}</p>
+                                {req.user_email && <p className="text-xs text-white/40">{req.user_email}</p>}
+                                {req.user_phone && <p className="text-xs text-white/40">{req.user_phone}</p>}
+                              </td>
+                              <td className="px-4 py-3 text-white/50">{formatDate(req.created_at)}</td>
+                              <td className="px-4 py-3">
+                                <Select
+                                  value={edit.status}
+                                  onValueChange={v => setRequestEdits(prev => ({ ...prev, [req.id]: { ...edit, status: v } }))}
+                                >
+                                  <SelectTrigger className={`${IC} w-36 text-xs h-8`}><SelectValue /></SelectTrigger>
+                                  <SelectContent className="bg-[#0f1730] border-white/10">
+                                    {BOOK_REQUEST_STATUSES.map(s => <SelectItem key={s} value={s}>{s.replace(/_/g, ' ')}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                              <td className="px-4 py-3">
+                                <Input
+                                  className={`${IC} text-xs h-8`}
+                                  placeholder="Reply..."
+                                  value={edit.reply}
+                                  onChange={e => setRequestEdits(prev => ({ ...prev, [req.id]: { ...edit, reply: e.target.value } }))}
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <Button
+                                  size="sm"
+                                  className="bg-amber hover:bg-amber/90 text-black text-xs h-8"
+                                  disabled={requestSaving[req.id]}
+                                  onClick={() => saveBookRequest(req)}
+                                >
+                                  {requestSaving[req.id] ? <Loader2 className="size-3 animate-spin" /> : 'Save'}
+                                </Button>
+                              </td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════════
+              TAB: SELL REQUESTS
+              ═══════════════════════════════════════════════════════════ */}
+          {activeTab === 'sell-requests' && (
+            <div className="space-y-4">
+              <p className="text-sm text-white/40">{sellRequests.length} requests</p>
+              <div className="bg-[#0f1730] border border-white/5 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto max-h-[calc(100vh-220px)] overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-[#0f1730] z-10">
+                      <tr className="border-b border-white/5 text-left">
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Book</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden md:table-cell">Seller</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Asking</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Status</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Offer</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Reply</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sellRequests.length === 0 ? (
+                        <tr><td colSpan={7} className="px-4 py-8 text-center text-white/30">No sell requests</td></tr>
+                      ) : (
+                        sellRequests.map(req => {
+                          const edit = requestEdits[req.id] || {
+                            status: req.status,
+                            reply: req.admin_reply || '',
+                            offer_price: String(req.offer_price || ''),
+                          }
+                          return (
+                            <tr key={req.id} className="border-b border-white/5 hover:bg-white/5 transition-colors align-top">
+                              <td className="px-4 py-3">
+                                <p className="text-white font-medium">{req.book_title}</p>
+                                {req.author && <p className="text-xs text-white/40">{req.author}</p>}
+                                <p className="text-xs text-white/30">{req.book_condition}</p>
+                              </td>
+                              <td className="px-4 py-3 hidden md:table-cell">
+                                <p className="text-white/70">{req.user_name}</p>
+                                {req.user_email && <p className="text-xs text-white/40">{req.user_email}</p>}
+                                {req.user_phone && <p className="text-xs text-white/40">{req.user_phone}</p>}
+                              </td>
+                              <td className="px-4 py-3 text-amber font-medium">
+                                {req.asking_price ? formatCurrency(req.asking_price) : 'N/A'}
+                              </td>
+                              <td className="px-4 py-3">
+                                <Select
+                                  value={edit.status}
+                                  onValueChange={v => setRequestEdits(prev => ({ ...prev, [req.id]: { ...edit, status: v } }))}
+                                >
+                                  <SelectTrigger className={`${IC} w-32 text-xs h-8`}><SelectValue /></SelectTrigger>
+                                  <SelectContent className="bg-[#0f1730] border-white/10">
+                                    {SELL_REQUEST_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                              <td className="px-4 py-3">
+                                <Input
+                                  type="number"
+                                  className={`${IC} text-xs h-8 w-24`}
+                                  placeholder="₹ 0"
+                                  value={edit.offer_price}
+                                  onChange={e => setRequestEdits(prev => ({ ...prev, [req.id]: { ...edit, offer_price: e.target.value } }))}
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <Input
+                                  className={`${IC} text-xs h-8`}
+                                  placeholder="Reply..."
+                                  value={edit.reply}
+                                  onChange={e => setRequestEdits(prev => ({ ...prev, [req.id]: { ...edit, reply: e.target.value } }))}
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <Button
+                                  size="sm"
+                                  className="bg-amber hover:bg-amber/90 text-black text-xs h-8"
+                                  disabled={requestSaving[req.id]}
+                                  onClick={() => saveSellRequest(req)}
+                                >
+                                  {requestSaving[req.id] ? <Loader2 className="size-3 animate-spin" /> : 'Save'}
+                                </Button>
+                              </td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════════
+              TAB: SITE SETTINGS
+              ═══════════════════════════════════════════════════════════ */}
+          {activeTab === 'settings' && (
+            <div className="space-y-4">
+              <p className="text-sm text-white/40">{Object.keys(settings).length} settings</p>
+              <div className="bg-[#0f1730] border border-white/5 rounded-xl overflow-hidden">
+                <div className="max-h-[calc(100vh-220px)] overflow-y-auto">
+                  {Object.keys(settings).length === 0 ? (
+                    <div className="p-8 text-center text-white/30">No settings found</div>
+                  ) : (
+                    <div className="divide-y divide-white/5">
+                      {Object.entries(settings).map(([key, value]) => (
+                        <div key={key} className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4">
+                          <div className="flex-1 min-w-0 w-full sm:w-auto">
+                            <Label className={LC}>{key}</Label>
+                            <p className="text-xs text-white/30 mt-0.5 truncate">{value}</p>
+                          </div>
+                          <div className="w-full sm:w-96 flex-shrink-0">
+                            <Input
+                              className={IC}
+                              value={value}
+                              onChange={e => updateSetting(key, e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+        </main>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          DIALOGS
+          ═══════════════════════════════════════════════════════════════ */}
+
+      {/* ─── Book Dialog ────────────────────────────────────────────── */}
       <Dialog open={bookDialogOpen} onOpenChange={setBookDialogOpen}>
         <DialogContent className="bg-[#0f1730] border-white/10 max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -633,89 +1075,99 @@ export function AdminDashboard({ userId }: { userId: string }) {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
+            {/* Basic Info */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className={labelClass}>Title *</Label>
-                <Input className={inputClass} value={bookForm.title} onChange={e => setBookForm(p => ({ ...p, title: e.target.value }))} placeholder="Book Title" />
+                <Label className={LC}>Title *</Label>
+                <Input className={IC} value={bookForm.title} onChange={e => setBookForm(p => ({ ...p, title: e.target.value }))} placeholder="Book Title" />
               </div>
               <div className="space-y-2">
-                <Label className={labelClass}>Author *</Label>
-                <Input className={inputClass} value={bookForm.author} onChange={e => setBookForm(p => ({ ...p, author: e.target.value }))} placeholder="Author Name" />
+                <Label className={LC}>Author *</Label>
+                <Input className={IC} value={bookForm.author} onChange={e => setBookForm(p => ({ ...p, author: e.target.value }))} placeholder="Author Name" />
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label className={labelClass}>Category</Label>
+                <Label className={LC}>Category</Label>
                 <Select value={bookForm.category} onValueChange={v => setBookForm(p => ({ ...p, category: v }))}>
-                  <SelectTrigger className={`${inputClass} w-full`}><SelectValue /></SelectTrigger>
+                  <SelectTrigger className={`${IC} w-full`}><SelectValue /></SelectTrigger>
                   <SelectContent className="bg-[#0f1730] border-white/10">{CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className={labelClass}>Sub-Category</Label>
-                <Input className={inputClass} value={bookForm.sub_category} onChange={e => setBookForm(p => ({ ...p, sub_category: e.target.value }))} placeholder="e.g. JEE Physics" />
+                <Label className={LC}>Sub-Category</Label>
+                <Input className={IC} value={bookForm.sub_category} onChange={e => setBookForm(p => ({ ...p, sub_category: e.target.value }))} placeholder="e.g. JEE Physics" />
               </div>
               <div className="space-y-2">
-                <Label className={labelClass}>Language</Label>
-                <Input className={inputClass} value={bookForm.language} onChange={e => setBookForm(p => ({ ...p, language: e.target.value }))} placeholder="English" />
+                <Label className={LC}>Language</Label>
+                <Input className={IC} value={bookForm.language} onChange={e => setBookForm(p => ({ ...p, language: e.target.value }))} placeholder="English" />
               </div>
             </div>
+
             <Separator className="bg-white/5" />
             <p className="text-xs uppercase tracking-wider text-amber/60 font-semibold">Pricing</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label className={labelClass}>Selling Price (₹)</Label>
-                <Input type="number" className={inputClass} value={bookForm.price} onChange={e => setBookForm(p => ({ ...p, price: Number(e.target.value) }))} />
+                <Label className={LC}>Selling Price</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 text-sm">₹</span>
+                  <Input type="number" className={`${IC} pl-7`} value={bookForm.price} onChange={e => setBookForm(p => ({ ...p, price: Number(e.target.value) }))} />
+                </div>
               </div>
               <div className="space-y-2">
-                <Label className={labelClass}>Original Price (₹)</Label>
-                <Input type="number" className={inputClass} value={bookForm.original_price} onChange={e => setBookForm(p => ({ ...p, original_price: Number(e.target.value) }))} />
+                <Label className={LC}>Original Price</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 text-sm">₹</span>
+                  <Input type="number" className={`${IC} pl-7`} value={bookForm.original_price} onChange={e => setBookForm(p => ({ ...p, original_price: Number(e.target.value) }))} />
+                </div>
               </div>
               <div className="space-y-2">
-                <Label className={labelClass}>Discount Tag</Label>
+                <Label className={LC}>Discount Tag</Label>
                 <Select value={bookForm.discount_tag} onValueChange={v => setBookForm(p => ({ ...p, discount_tag: v }))}>
-                  <SelectTrigger className={`${inputClass} w-full`}><SelectValue /></SelectTrigger>
+                  <SelectTrigger className={`${IC} w-full`}><SelectValue /></SelectTrigger>
                   <SelectContent className="bg-[#0f1730] border-white/10">{DISCOUNT_TAGS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className={labelClass}>Condition</Label>
+                <Label className={LC}>Condition</Label>
                 <Select value={bookForm.condition} onValueChange={v => setBookForm(p => ({ ...p, condition: v }))}>
-                  <SelectTrigger className={`${inputClass} w-full`}><SelectValue /></SelectTrigger>
+                  <SelectTrigger className={`${IC} w-full`}><SelectValue /></SelectTrigger>
                   <SelectContent className="bg-[#0f1730] border-white/10">{CONDITIONS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label className={labelClass}>Stock Quantity</Label>
-                <Input type="number" className={inputClass} value={bookForm.stock_quantity} onChange={e => setBookForm(p => ({ ...p, stock_quantity: Number(e.target.value) }))} />
+                <Label className={LC}>Stock Quantity</Label>
+                <Input type="number" className={IC} value={bookForm.stock_quantity} onChange={e => setBookForm(p => ({ ...p, stock_quantity: Number(e.target.value) }))} />
               </div>
             </div>
+
             <Separator className="bg-white/5" />
             <p className="text-xs uppercase tracking-wider text-amber/60 font-semibold">Details</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label className={labelClass}>ISBN</Label>
-                <Input className={inputClass} value={bookForm.isbn} onChange={e => setBookForm(p => ({ ...p, isbn: e.target.value }))} placeholder="ISBN" />
+                <Label className={LC}>ISBN</Label>
+                <Input className={IC} value={bookForm.isbn} onChange={e => setBookForm(p => ({ ...p, isbn: e.target.value }))} placeholder="ISBN" />
               </div>
               <div className="space-y-2">
-                <Label className={labelClass}>Publisher</Label>
-                <Input className={inputClass} value={bookForm.publisher} onChange={e => setBookForm(p => ({ ...p, publisher: e.target.value }))} placeholder="Publisher" />
+                <Label className={LC}>Publisher</Label>
+                <Input className={IC} value={bookForm.publisher} onChange={e => setBookForm(p => ({ ...p, publisher: e.target.value }))} placeholder="Publisher" />
               </div>
               <div className="space-y-2">
-                <Label className={labelClass}>Edition</Label>
-                <Input className={inputClass} value={bookForm.edition} onChange={e => setBookForm(p => ({ ...p, edition: e.target.value }))} placeholder="Edition" />
+                <Label className={LC}>Edition</Label>
+                <Input className={IC} value={bookForm.edition} onChange={e => setBookForm(p => ({ ...p, edition: e.target.value }))} placeholder="Edition" />
               </div>
             </div>
             <div className="space-y-2">
-              <Label className={labelClass}>Image URLs (one per line)</Label>
-              <Textarea className={inputClass} rows={3} value={bookForm.image_urls} onChange={e => setBookForm(p => ({ ...p, image_urls: e.target.value }))} placeholder="https://..." />
+              <Label className={LC}>Image URLs (one per line)</Label>
+              <Textarea className={IC} rows={3} value={bookForm.image_urls} onChange={e => setBookForm(p => ({ ...p, image_urls: e.target.value }))} placeholder="https://..." />
             </div>
             <div className="space-y-2">
-              <Label className={labelClass}>Description</Label>
-              <Textarea className={inputClass} rows={3} value={bookForm.description} onChange={e => setBookForm(p => ({ ...p, description: e.target.value }))} placeholder="Book description..." />
+              <Label className={LC}>Description</Label>
+              <Textarea className={IC} rows={3} value={bookForm.description} onChange={e => setBookForm(p => ({ ...p, description: e.target.value }))} placeholder="Book description..." />
             </div>
+
             <Separator className="bg-white/5" />
             <div className="flex items-center gap-6">
               <div className="flex items-center gap-2">
@@ -738,7 +1190,7 @@ export function AdminDashboard({ userId }: { userId: string }) {
         </DialogContent>
       </Dialog>
 
-      {/* ── Delete Dialog ────────────────────────────────────────────── */}
+      {/* ─── Delete Dialog ──────────────────────────────────────────── */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent className="bg-[#0f1730] border-white/10">
           <AlertDialogHeader>
@@ -757,7 +1209,7 @@ export function AdminDashboard({ userId }: { userId: string }) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ── Order Dialog ─────────────────────────────────────────────── */}
+      {/* ─── Order Dialog ───────────────────────────────────────────── */}
       <Dialog open={orderDialogOpen} onOpenChange={setOrderDialogOpen}>
         <DialogContent className="bg-[#0f1730] border-white/10 max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -803,9 +1255,9 @@ export function AdminDashboard({ userId }: { userId: string }) {
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-white truncate">{item.book_title}</p>
-                        <p className="text-xs text-white/40">Qty: {item.quantity} × ₹{item.book_price}</p>
+                        <p className="text-xs text-white/40">Qty: {item.quantity} &times; {formatCurrency(item.book_price)}</p>
                       </div>
-                      <p className="text-sm text-amber font-medium">₹{item.book_price * item.quantity}</p>
+                      <p className="text-sm text-amber font-medium">{formatCurrency(item.book_price * item.quantity)}</p>
                     </div>
                   ))}
                 </div>
@@ -824,37 +1276,38 @@ export function AdminDashboard({ userId }: { userId: string }) {
                   <p className="text-amber font-semibold">{formatCurrency(editingOrder.grand_total)}</p>
                 </div>
               </div>
+
               <Separator className="bg-white/5" />
               <p className="text-xs uppercase tracking-wider text-amber/60 font-semibold">Update Order</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className={labelClass}>Order Status</Label>
+                  <Label className={LC}>Order Status</Label>
                   <Select value={orderForm.order_status} onValueChange={v => setOrderForm(p => ({ ...p, order_status: v }))}>
-                    <SelectTrigger className={`${inputClass} w-full`}><SelectValue /></SelectTrigger>
+                    <SelectTrigger className={`${IC} w-full`}><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-[#0f1730] border-white/10">{ORDER_STATUSES.map(s => <SelectItem key={s} value={s}>{s.replace(/_/g, ' ')}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className={labelClass}>Payment Status</Label>
+                  <Label className={LC}>Payment Status</Label>
                   <Select value={orderForm.payment_status} onValueChange={v => setOrderForm(p => ({ ...p, payment_status: v }))}>
-                    <SelectTrigger className={`${inputClass} w-full`}><SelectValue /></SelectTrigger>
+                    <SelectTrigger className={`${IC} w-full`}><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-[#0f1730] border-white/10">{PAYMENT_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className={labelClass}>Tracking URL</Label>
-                  <Input className={inputClass} value={orderForm.tracking_url} onChange={e => setOrderForm(p => ({ ...p, tracking_url: e.target.value }))} placeholder="https://..." />
+                  <Label className={LC}>Tracking URL</Label>
+                  <Input className={IC} value={orderForm.tracking_url} onChange={e => setOrderForm(p => ({ ...p, tracking_url: e.target.value }))} placeholder="https://..." />
                 </div>
                 <div className="space-y-2">
-                  <Label className={labelClass}>Tracking Number</Label>
-                  <Input className={inputClass} value={orderForm.tracking_number} onChange={e => setOrderForm(p => ({ ...p, tracking_number: e.target.value }))} placeholder="Tracking ID" />
+                  <Label className={LC}>Tracking Number</Label>
+                  <Input className={IC} value={orderForm.tracking_number} onChange={e => setOrderForm(p => ({ ...p, tracking_number: e.target.value }))} placeholder="Tracking ID" />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label className={labelClass}>Admin Notes</Label>
-                <Textarea className={inputClass} rows={3} value={orderForm.admin_notes} onChange={e => setOrderForm(p => ({ ...p, admin_notes: e.target.value }))} placeholder="Internal notes..." />
+                <Label className={LC}>Admin Notes</Label>
+                <Textarea className={IC} rows={3} value={orderForm.admin_notes} onChange={e => setOrderForm(p => ({ ...p, admin_notes: e.target.value }))} placeholder="Internal notes..." />
               </div>
             </div>
           )}
@@ -868,7 +1321,7 @@ export function AdminDashboard({ userId }: { userId: string }) {
         </DialogContent>
       </Dialog>
 
-      {/* ── Slide Dialog ─────────────────────────────────────────────── */}
+      {/* ─── Slide Dialog ───────────────────────────────────────────── */}
       <Dialog open={slideDialogOpen} onOpenChange={setSlideDialogOpen}>
         <DialogContent className="bg-[#0f1730] border-white/10 max-w-lg">
           <DialogHeader>
@@ -877,39 +1330,39 @@ export function AdminDashboard({ userId }: { userId: string }) {
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="space-y-2">
-              <Label className={labelClass}>Title *</Label>
-              <Input className={inputClass} value={slideForm.title} onChange={e => setSlideForm(p => ({ ...p, title: e.target.value }))} placeholder="Slide title" />
+              <Label className={LC}>Title *</Label>
+              <Input className={IC} value={slideForm.title} onChange={e => setSlideForm(p => ({ ...p, title: e.target.value }))} placeholder="Slide title" />
             </div>
             <div className="space-y-2">
-              <Label className={labelClass}>Subtitle</Label>
-              <Input className={inputClass} value={slideForm.subtitle} onChange={e => setSlideForm(p => ({ ...p, subtitle: e.target.value }))} placeholder="Subtitle text" />
+              <Label className={LC}>Subtitle</Label>
+              <Input className={IC} value={slideForm.subtitle} onChange={e => setSlideForm(p => ({ ...p, subtitle: e.target.value }))} placeholder="Subtitle text" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className={labelClass}>CTA Button Text</Label>
-                <Input className={inputClass} value={slideForm.cta_button_text} onChange={e => setSlideForm(p => ({ ...p, cta_button_text: e.target.value }))} placeholder="Browse Books" />
+                <Label className={LC}>CTA Button Text</Label>
+                <Input className={IC} value={slideForm.cta_button_text} onChange={e => setSlideForm(p => ({ ...p, cta_button_text: e.target.value }))} placeholder="Browse Books" />
               </div>
               <div className="space-y-2">
-                <Label className={labelClass}>CTA Link</Label>
-                <Input className={inputClass} value={slideForm.cta_link} onChange={e => setSlideForm(p => ({ ...p, cta_link: e.target.value }))} placeholder="/books" />
+                <Label className={LC}>CTA Link</Label>
+                <Input className={IC} value={slideForm.cta_link} onChange={e => setSlideForm(p => ({ ...p, cta_link: e.target.value }))} placeholder="/books" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className={labelClass}>Background Color</Label>
+                <Label className={LC}>Background Color</Label>
                 <div className="flex items-center gap-2">
                   <input type="color" value={slideForm.background_color} onChange={e => setSlideForm(p => ({ ...p, background_color: e.target.value }))} className="size-10 rounded cursor-pointer border border-white/10" />
-                  <Input className={inputClass} value={slideForm.background_color} onChange={e => setSlideForm(p => ({ ...p, background_color: e.target.value }))} />
+                  <Input className={IC} value={slideForm.background_color} onChange={e => setSlideForm(p => ({ ...p, background_color: e.target.value }))} />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label className={labelClass}>Sort Order</Label>
-                <Input type="number" className={inputClass} value={slideForm.sort_order} onChange={e => setSlideForm(p => ({ ...p, sort_order: Number(e.target.value) }))} />
+                <Label className={LC}>Sort Order</Label>
+                <Input type="number" className={IC} value={slideForm.sort_order} onChange={e => setSlideForm(p => ({ ...p, sort_order: Number(e.target.value) }))} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label className={labelClass}>Image URL</Label>
-              <Input className={inputClass} value={slideForm.image_url} onChange={e => setSlideForm(p => ({ ...p, image_url: e.target.value }))} placeholder="https://..." />
+              <Label className={LC}>Image URL</Label>
+              <Input className={IC} value={slideForm.image_url} onChange={e => setSlideForm(p => ({ ...p, image_url: e.target.value }))} placeholder="https://..." />
             </div>
             <div className="flex items-center gap-2">
               <Switch checked={slideForm.active} onCheckedChange={v => setSlideForm(p => ({ ...p, active: v }))} />
@@ -925,631 +1378,7 @@ export function AdminDashboard({ userId }: { userId: string }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  )
-}
 
-// ────────────────────────────────────────────────────────────────────────────
-// SECTION COMPONENTS
-// ────────────────────────────────────────────────────────────────────────────
-
-// ─── Dashboard Tab ──────────────────────────────────────────────────────────
-
-function DashboardTab({ totalBooks, totalOrders, revenue, pendingOrders, pendingBookRequests, pendingSellRequests, orders, formatCurrency, formatDate, onOrderClick }: {
-  totalBooks: number; totalOrders: number; revenue: number; pendingOrders: number
-  pendingBookRequests: number; pendingSellRequests: number
-  orders: Order[]; formatCurrency: (n: number) => string; formatDate: (d: string) => string
-  onOrderClick: (o: Order) => void
-}) {
-  const stats = [
-    { label: 'Total Books', value: totalBooks, icon: <BookOpen className="size-5" />, color: 'text-blue-400' },
-    { label: 'Total Orders', value: totalOrders, icon: <ShoppingBag className="size-5" />, color: 'text-purple-400' },
-    { label: 'Revenue', value: formatCurrency(revenue), icon: <DollarSign className="size-5" />, color: 'text-green-400' },
-    { label: 'Pending Orders', value: pendingOrders, icon: <Clock className="size-5" />, color: 'text-yellow-400' },
-  ]
-
-  return (
-    <div className="space-y-6">
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map(stat => (
-          <div key={stat.label} className="bg-[#0f1730] border border-white/5 rounded-xl p-4 lg:p-6">
-            <div className="flex items-center justify-between mb-3">
-              <span className={`p-2 rounded-lg bg-white/5 ${stat.color}`}>{stat.icon}</span>
-            </div>
-            <p className="text-2xl lg:text-3xl font-bold text-white">{stat.value}</p>
-            <p className="text-sm text-white/40 mt-1">{stat.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Pending Requests */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-[#0f1730] border border-white/5 rounded-xl p-4 flex items-center gap-4">
-          <div className="p-3 rounded-lg bg-amber/10 text-amber"><BookX className="size-5" /></div>
-          <div>
-            <p className="text-xl font-bold text-white">{pendingBookRequests}</p>
-            <p className="text-sm text-white/40">Pending Book Requests</p>
-          </div>
-        </div>
-        <div className="bg-[#0f1730] border border-white/5 rounded-xl p-4 flex items-center gap-4">
-          <div className="p-3 rounded-lg bg-amber/10 text-amber"><Package className="size-5" /></div>
-          <div>
-            <p className="text-xl font-bold text-white">{pendingSellRequests}</p>
-            <p className="text-sm text-white/40">Pending Sell Requests</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Recent Orders */}
-      <div className="bg-[#0f1730] border border-white/5 rounded-xl overflow-hidden">
-        <div className="p-4 lg:p-6 border-b border-white/5">
-          <h3 className="text-lg font-semibold text-white">Recent Orders</h3>
-          <p className="text-sm text-white/40">Latest 10 orders</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-white/5 text-left">
-                <th className="px-4 py-3 text-white/40 font-medium">Order #</th>
-                <th className="px-4 py-3 text-white/40 font-medium">Date</th>
-                <th className="px-4 py-3 text-white/40 font-medium hidden sm:table-cell">Customer</th>
-                <th className="px-4 py-3 text-white/40 font-medium">Total</th>
-                <th className="px-4 py-3 text-white/40 font-medium">Status</th>
-                <th className="px-4 py-3 text-white/40 font-medium">Payment</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-white/30">No orders yet</td></tr>
-              ) : (
-                orders.map(order => (
-                  <tr
-                    key={order.id}
-                    onClick={() => onOrderClick(order)}
-                    className="border-b border-white/5 hover:bg-white/[0.02] cursor-pointer transition-colors"
-                  >
-                    <td className="px-4 py-3 text-amber font-mono text-xs">{order.order_number}</td>
-                    <td className="px-4 py-3 text-white/60">{formatDate(order.created_at)}</td>
-                    <td className="px-4 py-3 text-white hidden sm:table-cell">{order.shipping_name}</td>
-                    <td className="px-4 py-3 text-white font-medium">{formatCurrency(order.grand_total)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${ORDER_STATUS_COLORS[order.order_status] || 'bg-white/10 text-white/40'}`}>
-                        {order.order_status.replace(/_/g, ' ')}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${PAYMENT_STATUS_COLORS[order.payment_status] || 'bg-white/10 text-white/40'}`}>
-                        {order.payment_status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Books Tab ──────────────────────────────────────────────────────────────
-
-function BooksTab({ books, formatCurrency, onAdd, onEdit, onDelete }: {
-  books: Book[]; formatCurrency: (n: number) => string
-  onAdd: () => void; onEdit: (b: Book) => void; onDelete: (b: Book) => void
-}) {
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-white/40">{books.length} books</p>
-        <Button onClick={onAdd} className="bg-amber hover:bg-amber/90 text-black font-semibold">
-          <Plus className="size-4" /> Add Book
-        </Button>
-      </div>
-      <div className="bg-[#0f1730] border border-white/5 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-[#0f1730] z-10">
-              <tr className="border-b border-white/5 text-left">
-                <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Title</th>
-                <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Author</th>
-                <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden md:table-cell">Category</th>
-                <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Price</th>
-                <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden lg:table-cell">Orig.</th>
-                <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden lg:table-cell">Discount</th>
-                <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden xl:table-cell">Condition</th>
-                <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden lg:table-cell">Stock</th>
-                <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden xl:table-cell">Active</th>
-                <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden xl:table-cell">Featured</th>
-                <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {books.length === 0 ? (
-                <tr><td colSpan={11} className="px-4 py-8 text-center text-white/30">No books found</td></tr>
-              ) : (
-                books.map(book => (
-                  <tr key={book.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                    <td className="px-4 py-3 text-white font-medium max-w-[200px] truncate">{book.title}</td>
-                    <td className="px-4 py-3 text-white/60 max-w-[150px] truncate">{book.author}</td>
-                    <td className="px-4 py-3 text-white/50 hidden md:table-cell">
-                      <Badge variant="outline" className="border-white/10 text-white/50 text-xs">{book.category}</Badge>
-                    </td>
-                    <td className="px-4 py-3 text-amber font-medium">{formatCurrency(book.price)}</td>
-                    <td className="px-4 py-3 text-white/30 line-through hidden lg:table-cell">{formatCurrency(book.original_price)}</td>
-                    <td className="px-4 py-3 hidden lg:table-cell">
-                      {book.discount_tag ? (
-                        <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">{book.discount_tag}</Badge>
-                      ) : (
-                        <span className="text-white/20">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-white/50 hidden xl:table-cell">{book.condition}</td>
-                    <td className="px-4 py-3 text-white/50 hidden lg:table-cell">{book.stock_quantity}</td>
-                    <td className="px-4 py-3 hidden xl:table-cell">
-                      <span className={`inline-block w-2 h-2 rounded-full ${book.active ? 'bg-green-400' : 'bg-red-400'}`} />
-                    </td>
-                    <td className="px-4 py-3 hidden xl:table-cell">
-                      {book.featured ? (
-                        <span className="text-amber text-xs">★</span>
-                      ) : (
-                        <span className="text-white/20">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="size-8 text-white/40 hover:text-amber" onClick={() => onEdit(book)}>
-                          <Pencil className="size-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="size-8 text-white/40 hover:text-red-400" onClick={() => onDelete(book)}>
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Orders Tab ─────────────────────────────────────────────────────────────
-
-function OrdersTab({ orders, formatCurrency, formatDate, onOrderClick }: {
-  orders: Order[]; formatCurrency: (n: number) => string; formatDate: (d: string) => string
-  onOrderClick: (o: Order) => void
-}) {
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-white/40">{orders.length} orders</p>
-      <div className="bg-[#0f1730] border border-white/5 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-[#0f1730] z-10">
-              <tr className="border-b border-white/5 text-left">
-                <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Order #</th>
-                <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Date</th>
-                <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden md:table-cell">Customer</th>
-                <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden lg:table-cell">Items</th>
-                <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Total</th>
-                <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden sm:table-cell">Payment</th>
-                <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Status</th>
-                <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-white/30">No orders yet</td></tr>
-              ) : (
-                orders.map(order => (
-                  <tr key={order.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                    <td className="px-4 py-3 text-amber font-mono text-xs">{order.order_number}</td>
-                    <td className="px-4 py-3 text-white/60 text-xs">{formatDate(order.created_at)}</td>
-                    <td className="px-4 py-3 text-white hidden md:table-cell max-w-[150px] truncate">{order.shipping_name}</td>
-                    <td className="px-4 py-3 text-white/50 hidden lg:table-cell">{order.order_items?.length || 0} items</td>
-                    <td className="px-4 py-3 text-white font-medium">{formatCurrency(order.grand_total)}</td>
-                    <td className="px-4 py-3 hidden sm:table-cell">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${PAYMENT_STATUS_COLORS[order.payment_status]}`}>
-                        {order.payment_status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${ORDER_STATUS_COLORS[order.order_status]}`}>
-                        {order.order_status.replace(/_/g, ' ')}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Button variant="ghost" size="sm" className="text-amber hover:text-amber/80 h-7 text-xs" onClick={() => onOrderClick(order)}>
-                        <Eye className="size-3.5" /> Manage
-                      </Button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Hero Slides Tab ────────────────────────────────────────────────────────
-
-function SlidesTab({ slides, onAdd, onEdit, onDelete }: {
-  slides: HeroSlide[]; onAdd: () => void; onEdit: (s: HeroSlide) => void; onDelete: (s: HeroSlide) => void
-}) {
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-white/40">{slides.length} slides</p>
-        <Button onClick={onAdd} className="bg-amber hover:bg-amber/90 text-black font-semibold">
-          <Plus className="size-4" /> Add Slide
-        </Button>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {slides.length === 0 ? (
-          <div className="col-span-full text-center py-12 text-white/30">No slides yet</div>
-        ) : (
-          slides.map(slide => (
-            <div key={slide.id} className="bg-[#0f1730] border border-white/5 rounded-xl overflow-hidden">
-              <div className="h-32 relative flex items-center justify-center" style={{ backgroundColor: slide.background_color }}>
-                {slide.image_url ? (
-                  <img src={slide.image_url} alt="" className="size-full object-cover opacity-80" />
-                ) : (
-                  <ImageIcon className="size-8 text-white/20" />
-                )}
-                <div className="absolute top-2 right-2 flex items-center gap-1.5">
-                  <Badge variant={slide.active ? 'default' : 'secondary'} className={slide.active ? 'bg-green-500/20 text-green-400 border-green-500/30' : ''}>
-                    {slide.active ? 'Active' : 'Inactive'}
-                  </Badge>
-                </div>
-                <div className="absolute bottom-2 left-2">
-                  <Badge variant="outline" className="border-white/20 text-white/60 text-[10px]">Sort: {slide.sort_order}</Badge>
-                </div>
-              </div>
-              <div className="p-4 space-y-2">
-                <h4 className="text-white font-medium truncate">{slide.title}</h4>
-                {slide.subtitle && <p className="text-white/40 text-sm truncate">{slide.subtitle}</p>}
-                {slide.cta_button_text && (
-                  <p className="text-xs text-amber/70 truncate">
-                    CTA: {slide.cta_button_text} → {slide.cta_link || '#'}
-                  </p>
-                )}
-                <div className="flex items-center gap-2 pt-2">
-                  <Button variant="outline" size="sm" className="flex-1 border-white/10 text-white/60 hover:text-white hover:bg-white/5 h-8" onClick={() => onEdit(slide)}>
-                    <Pencil className="size-3.5" /> Edit
-                  </Button>
-                  <Button variant="outline" size="sm" className="border-white/10 text-red-400/60 hover:text-red-400 hover:bg-red-400/10 h-8" onClick={() => onDelete(slide)}>
-                    <Trash2 className="size-3.5" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ─── Book Requests Tab ──────────────────────────────────────────────────────
-
-function BookRequestsTab({ requests, formatDate, requestEdits, setRequestEdits, requestSaving, onSave }: {
-  requests: BookRequest[]; formatDate: (d: string) => string
-  requestEdits: Record<string, { status: string; reply: string; offer_price: string }>
-  setRequestEdits: React.Dispatch<React.SetStateAction<Record<string, { status: string; reply: string; offer_price: string }>>>
-  requestSaving: Record<string, boolean>
-  onSave: (r: BookRequest) => void
-}) {
-  const getEdit = (req: BookRequest) =>
-    requestEdits[req.id] || { status: req.status, reply: req.admin_reply || '', offer_price: '' }
-
-  const setEdit = (id: string, field: string, value: string) =>
-    setRequestEdits(prev => ({
-      ...prev,
-      [id]: { ...(prev[id] || { status: '', reply: '', offer_price: '' }), [field]: value }
-    }))
-
-  const statusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      pending: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-      found: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-      not_available: 'bg-red-500/20 text-red-400 border-red-500/30',
-      fulfilled: 'bg-green-500/20 text-green-400 border-green-500/30',
-    }
-    return colors[status] || 'bg-white/10 text-white/40'
-  }
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-white/40">{requests.length} requests</p>
-      <div className="space-y-3">
-        {requests.length === 0 ? (
-          <div className="text-center py-12 text-white/30">No book requests</div>
-        ) : (
-          requests.map(req => {
-            const edit = getEdit(req)
-            return (
-              <div key={req.id} className="bg-[#0f1730] border border-white/5 rounded-xl p-4 space-y-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <h4 className="text-white font-medium">{req.book_title}</h4>
-                    <p className="text-sm text-white/50">{req.author || 'Unknown author'}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge className={`border ${statusColor(edit.status)}`}>
-                      {edit.status}
-                    </Badge>
-                    <span className="text-xs text-white/30">{formatDate(req.created_at)}</span>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-4 text-sm">
-                  <div>
-                    <span className="text-white/30">User: </span>
-                    <span className="text-white/70">{req.user_name || 'Anonymous'}</span>
-                  </div>
-                  <div>
-                    <span className="text-white/30">Email: </span>
-                    <span className="text-white/70">{req.user_email || '—'}</span>
-                  </div>
-                  {req.category && (
-                    <div>
-                      <span className="text-white/30">Category: </span>
-                      <span className="text-white/70">{req.category}</span>
-                    </div>
-                  )}
-                </div>
-                {req.notes && (
-                  <p className="text-sm text-white/40 italic">&quot;{req.notes}&quot;</p>
-                )}
-                <Separator className="bg-white/5" />
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <div className="flex-1 space-y-2">
-                    <Label className="text-xs uppercase tracking-wider text-amber/60 font-semibold">Status</Label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {BOOK_REQUEST_STATUSES.map(s => (
-                        <button
-                          key={s}
-                          onClick={() => setEdit(req.id, 'status', s)}
-                          className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-all ${
-                            edit.status === s ? 'bg-amber/20 text-amber border-amber/40' : 'bg-white/5 text-white/40 border-white/10 hover:border-white/20'
-                          }`}
-                        >
-                          {s.replace(/_/g, ' ')}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex-1 space-y-2">
-                    <Label className="text-xs uppercase tracking-wider text-amber/60 font-semibold">Admin Reply</Label>
-                    <Textarea
-                      className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus-visible:border-amber/50 rounded-md text-sm"
-                      rows={2}
-                      placeholder="Reply to customer..."
-                      value={edit.reply}
-                      onChange={e => setEdit(req.id, 'reply', e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-end">
-                  <Button
-                    size="sm"
-                    onClick={() => onSave(req)}
-                    disabled={requestSaving[req.id]}
-                    className="bg-amber hover:bg-amber/90 text-black font-semibold h-8"
-                  >
-                    {requestSaving[req.id] ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
-                    Save
-                  </Button>
-                </div>
-              </div>
-            )
-          })
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ─── Sell Requests Tab ──────────────────────────────────────────────────────
-
-function SellRequestsTab({ requests, formatCurrency, formatDate, requestEdits, setRequestEdits, requestSaving, onSave }: {
-  requests: SellRequest[]; formatCurrency: (n: number) => string; formatDate: (d: string) => string
-  requestEdits: Record<string, { status: string; reply: string; offer_price: string }>
-  setRequestEdits: React.Dispatch<React.SetStateAction<Record<string, { status: string; reply: string; offer_price: string }>>>
-  requestSaving: Record<string, boolean>
-  onSave: (r: SellRequest) => void
-}) {
-  const getEdit = (req: SellRequest) =>
-    requestEdits[req.id] || { status: req.status, reply: req.admin_reply || '', offer_price: String(req.offer_price || '') }
-
-  const setEdit = (id: string, field: string, value: string) =>
-    setRequestEdits(prev => ({
-      ...prev,
-      [id]: { ...(prev[id] || { status: '', reply: '', offer_price: '' }), [field]: value }
-    }))
-
-  const statusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      pending: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-      reviewed: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-      accepted: 'bg-green-500/20 text-green-400 border-green-500/30',
-      rejected: 'bg-red-500/20 text-red-400 border-red-500/30',
-    }
-    return colors[status] || 'bg-white/10 text-white/40'
-  }
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-white/40">{requests.length} requests</p>
-      <div className="space-y-3">
-        {requests.length === 0 ? (
-          <div className="text-center py-12 text-white/30">No sell requests</div>
-        ) : (
-          requests.map(req => {
-            const edit = getEdit(req)
-            return (
-              <div key={req.id} className="bg-[#0f1730] border border-white/5 rounded-xl p-4 space-y-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <h4 className="text-white font-medium">{req.book_title}</h4>
-                    <p className="text-sm text-white/50">{req.author || 'Unknown author'}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge className={`border ${statusColor(edit.status)}`}>
-                      {edit.status}
-                    </Badge>
-                    <span className="text-xs text-white/30">{formatDate(req.created_at)}</span>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-4 text-sm">
-                  <div>
-                    <span className="text-white/30">User: </span>
-                    <span className="text-white/70">{req.user_name}</span>
-                  </div>
-                  <div>
-                    <span className="text-white/30">Email: </span>
-                    <span className="text-white/70">{req.user_email}</span>
-                  </div>
-                  <div>
-                    <span className="text-white/30">Condition: </span>
-                    <span className="text-white/70">{req.book_condition}</span>
-                  </div>
-                  <div>
-                    <span className="text-white/30">Asking: </span>
-                    <span className="text-amber">{formatCurrency(req.asking_price || 0)}</span>
-                  </div>
-                </div>
-                {req.description && (
-                  <p className="text-sm text-white/40 italic">&quot;{req.description}&quot;</p>
-                )}
-                <Separator className="bg-white/5" />
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <div className="flex-1 space-y-2">
-                    <Label className="text-xs uppercase tracking-wider text-amber/60 font-semibold">Status</Label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {SELL_REQUEST_STATUSES.map(s => (
-                        <button
-                          key={s}
-                          onClick={() => setEdit(req.id, 'status', s)}
-                          className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-all ${
-                            edit.status === s ? 'bg-amber/20 text-amber border-amber/40' : 'bg-white/5 text-white/40 border-white/10 hover:border-white/20'
-                          }`}
-                        >
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="w-full sm:w-32 space-y-2">
-                    <Label className="text-xs uppercase tracking-wider text-amber/60 font-semibold">Offer Price (₹)</Label>
-                    <Input
-                      type="number"
-                      className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus-visible:border-amber/50 rounded-md text-sm h-9"
-                      placeholder="₹0"
-                      value={edit.offer_price}
-                      onChange={e => setEdit(req.id, 'offer_price', e.target.value)}
-                    />
-                  </div>
-                  <div className="flex-1 space-y-2">
-                    <Label className="text-xs uppercase tracking-wider text-amber/60 font-semibold">Admin Reply</Label>
-                    <Textarea
-                      className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus-visible:border-amber/50 rounded-md text-sm"
-                      rows={2}
-                      placeholder="Reply to seller..."
-                      value={edit.reply}
-                      onChange={e => setEdit(req.id, 'reply', e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-end">
-                  <Button
-                    size="sm"
-                    onClick={() => onSave(req)}
-                    disabled={requestSaving[req.id]}
-                    className="bg-amber hover:bg-amber/90 text-black font-semibold h-8"
-                  >
-                    {requestSaving[req.id] ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
-                    Save
-                  </Button>
-                </div>
-              </div>
-            )
-          })
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ─── Settings Tab ───────────────────────────────────────────────────────────
-
-function SettingsTab({ settings, updateSetting, inputClass, labelClass }: {
-  settings: Record<string, string>
-  updateSetting: (key: string, value: string) => void
-  inputClass: string; labelClass: string
-}) {
-  const get = (key: string) => settings[key] || ''
-  const isChecked = (key: string) => get(key) === 'true'
-
-  return (
-    <div className="max-w-2xl space-y-6">
-      <div className="bg-[#0f1730] border border-white/5 rounded-xl p-6 space-y-5">
-        <h3 className="text-white font-semibold text-lg">General Settings</h3>
-        <div className="space-y-2">
-          <Label className={labelClass}>Site Name</Label>
-          <Input className={inputClass} value={get('site_name')} onChange={e => updateSetting('site_name', e.target.value)} />
-        </div>
-        <div className="space-y-2">
-          <Label className={labelClass}>Tagline</Label>
-          <Input className={inputClass} value={get('tagline')} onChange={e => updateSetting('tagline', e.target.value)} />
-        </div>
-        <div className="space-y-2">
-          <Label className={labelClass}>WhatsApp Number</Label>
-          <Input className={inputClass} value={get('whatsapp_number')} onChange={e => updateSetting('whatsapp_number', e.target.value)} placeholder="+91XXXXXXXXXX" />
-        </div>
-        <div className="space-y-2">
-          <Label className={labelClass}>Delivery Charge (₹)</Label>
-          <Input type="number" className={inputClass} value={get('delivery_charge')} onChange={e => updateSetting('delivery_charge', e.target.value)} />
-        </div>
-      </div>
-
-      <div className="bg-[#0f1730] border border-white/5 rounded-xl p-6 space-y-5">
-        <h3 className="text-white font-semibold text-lg">Announcement Banner</h3>
-        <div className="space-y-2">
-          <Label className={labelClass}>Banner Text</Label>
-          <Input className={inputClass} value={get('announcement_banner')} onChange={e => updateSetting('announcement_banner', e.target.value)} placeholder="e.g. Free delivery on orders above ₹499!" />
-        </div>
-        <div className="flex items-center gap-3">
-          <Switch checked={isChecked('show_banner')} onCheckedChange={v => updateSetting('show_banner', String(v))} />
-          <Label className="text-sm text-white/70">Show Banner</Label>
-        </div>
-      </div>
-
-      <div className="bg-[#0f1730] border border-white/5 rounded-xl p-6 space-y-5">
-        <h3 className="text-white font-semibold text-lg">System Settings</h3>
-        <div className="flex items-center gap-3">
-          <Switch checked={isChecked('phonepe_enabled')} onCheckedChange={v => updateSetting('phonepe_enabled', String(v))} />
-          <div>
-            <Label className="text-sm text-white/70">PhonePe Payments</Label>
-            <p className="text-xs text-white/30">Enable PhonePe payment gateway</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <Switch checked={isChecked('maintenance_mode')} onCheckedChange={v => updateSetting('maintenance_mode', String(v))} />
-          <div>
-            <Label className="text-sm text-white/70">Maintenance Mode</Label>
-            <p className="text-xs text-white/30">Disable site for visitors</p>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

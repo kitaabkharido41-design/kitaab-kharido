@@ -78,3 +78,33 @@ Fix the admin dashboard at `/src/app/admin/admin-dashboard.tsx` which had the fo
 - RLS policies no longer block admin operations
 - Image upload works with drag-and-drop style file picker + preview thumbnails
 - Empty/error states handled gracefully throughout the dashboard
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix RLS infinite recursion error blocking all admin operations, add delete image button, deployment guide
+
+Work Log:
+- Diagnosed root cause: `createAdminClient()` was using anon key (no service role key in env), causing all Supabase queries to be subject to RLS
+- The `profiles` table had recursive RLS policies: `EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = true)` references itself
+- This caused "infinite recursion detected in policy for relation 'profiles'" on ALL table operations (books, orders, slides, settings, etc.)
+- Fixed `src/lib/supabase/admin.ts`: Now uses `@supabase/supabase-js` directly with service role key when available (bypasses ALL RLS). Falls back to SSR cookie client when service role key not set.
+- Added `hasServiceRoleKey()` helper function for API routes to report auth mode
+- Updated `src/app/api/admin/data/route.ts`: Returns `_meta` field with `usingServiceRole`, `hasRlsError`, and `errors` for dashboard to display
+- Updated `src/app/admin/admin-dashboard.tsx`:
+  - Added RLS status banner system (red=error, amber=warning, green=service role active)
+  - Added "Copy RLS Fix SQL" button that copies the complete SQL fix to clipboard
+  - Made delete image button always visible (removed opacity-0 group-hover hack)
+  - Improved empty states with icons (Inbox for orders, BookX for books)
+  - Added RLS error detection in saveBook and executeDelete with helpful error messages
+  - Added comprehensive RLS_FIX_SQL constant with all table policies fixed
+- Created `src/app/api/admin/upload/route.ts`: Dedicated image upload endpoint (accepts multipart form, validates type/size, returns base64 data URL)
+- Updated `.env` with Supabase public keys and template for `SUPABASE_SERVICE_ROLE_KEY`
+
+Stage Summary:
+- ROOT CAUSE: Recursive RLS policies on `profiles` table blocking all admin operations
+- PRIMARY FIX: Add `SUPABASE_SERVICE_ROLE_KEY` to `.env` → bypasses ALL RLS immediately
+- BACKUP FIX: Run RLS_FIX_SQL in Supabase SQL Editor → fixes policies to use `auth.jwt()` (no recursion)
+- Image delete button now always visible with red X icon and hover scale effect
+- All empty states show icons and helpful messages
+- Admin dashboard shows clear status banners about RLS health

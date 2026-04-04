@@ -9,7 +9,7 @@ import {
   LayoutDashboard, BookOpen, ShoppingBag, ImageIcon, BookOpenText,
   IndianRupee, Settings, ArrowLeft, Menu, Plus, Pencil, Trash2,
   Loader2, Package, DollarSign, Clock, BookX, RefreshCw, Search, LogOut,
-  Upload, X
+  Upload, X, AlertTriangle, ShieldCheck, ShieldX, Copy, Check, Inbox, ImageOff
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -103,6 +103,94 @@ const EMPTY_SLIDE_FORM = {
 const IC = "bg-white/5 border-white/10 text-white placeholder:text-white/30 focus-visible:border-amber/50 rounded-md"
 const LC = "text-xs uppercase tracking-wider text-amber/80 font-semibold"
 
+// SQL to fix recursive RLS policies — user can copy this and run in Supabase SQL Editor
+const RLS_FIX_SQL = `-- ============================================
+-- KITAAB KHARIDO: Fix RLS Infinite Recursion
+-- Run this in Supabase SQL Editor
+-- ============================================
+
+-- Step 1: Drop ALL existing policies that cause recursion
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
+  DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
+  DROP POLICY IF EXISTS "Admins can view all profiles" ON profiles;
+  DROP POLICY IF EXISTS "Admins can update all profiles" ON profiles;
+  DROP POLICY IF EXISTS "Users can insert own profile" ON profiles;
+  DROP POLICY IF EXISTS "Anyone can view active books" ON books;
+  DROP POLICY IF EXISTS "Admins can manage books" ON books;
+  DROP POLICY IF EXISTS "Anyone can view books" ON books;
+  DROP POLICY IF EXISTS "Users can view own orders" ON orders;
+  DROP POLICY IF EXISTS "Admins can manage orders" ON orders;
+  DROP POLICY IF EXISTS "Anyone can view active slides" ON hero_slides;
+  DROP POLICY IF EXISTS "Admins can manage slides" ON hero_slides;
+  DROP POLICY IF EXISTS "Anyone can view settings" ON site_settings;
+  DROP POLICY IF EXISTS "Admins can manage settings" ON site_settings;
+  DROP POLICY IF EXISTS "Users can manage own book requests" ON book_requests;
+  DROP POLICY IF EXISTS "Admins can manage book requests" ON book_requests;
+  DROP POLICY IF EXISTS "Users can manage own sell requests" ON sell_requests;
+  DROP POLICY IF EXISTS "Admins can manage sell requests" ON sell_requests;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- Step 2: Create new non-recursive policies
+-- Uses auth.jwt() to check admin email directly from JWT (NO table query = NO recursion)
+
+-- Profiles: users can see/update their own
+CREATE POLICY "Users can view own profile" ON profiles FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Users can insert own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
+
+-- Admin can view/update all profiles (uses auth.jwt() — NO recursion)
+CREATE POLICY "Admins can view all profiles" ON profiles FOR SELECT USING (
+  (auth.jwt()->>'email') = 'kitaabkharido41@gmail.com'
+);
+CREATE POLICY "Admins can update all profiles" ON profiles FOR UPDATE USING (
+  (auth.jwt()->>'email') = 'kitaabkharido41@gmail.com'
+);
+
+-- Books: anyone can view all books
+CREATE POLICY "Anyone can view books" ON books FOR SELECT USING (true);
+-- Admin can manage all books
+CREATE POLICY "Admins can manage books" ON books FOR ALL USING (
+  (auth.jwt()->>'email') = 'kitaabkharido41@gmail.com'
+);
+
+-- Orders: users can view/insert their own
+CREATE POLICY "Users can view own orders" ON orders FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own orders" ON orders FOR INSERT WITH CHECK (auth.uid() = user_id);
+-- Admin can manage all orders
+CREATE POLICY "Admins can manage orders" ON orders FOR ALL USING (
+  (auth.jwt()->>'email') = 'kitaabkharido41@gmail.com'
+);
+
+-- Hero slides: anyone can view active
+CREATE POLICY "Anyone can view active slides" ON hero_slides FOR SELECT USING (active = true);
+-- Admin can manage slides
+CREATE POLICY "Admins can manage slides" ON hero_slides FOR ALL USING (
+  (auth.jwt()->>'email') = 'kitaabkharido41@gmail.com'
+);
+
+-- Site settings: anyone can view
+CREATE POLICY "Anyone can view settings" ON site_settings FOR SELECT USING (true);
+-- Admin can manage settings
+CREATE POLICY "Admins can manage settings" ON site_settings FOR ALL USING (
+  (auth.jwt()->>'email') = 'kitaabkharido41@gmail.com'
+);
+
+-- Book requests: users can manage their own, admin can manage all
+CREATE POLICY "Users can view own book requests" ON book_requests FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own book requests" ON book_requests FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Admins can manage book requests" ON book_requests FOR ALL USING (
+  (auth.jwt()->>'email') = 'kitaabkharido41@gmail.com'
+);
+
+-- Sell requests: users can manage their own, admin can manage all
+CREATE POLICY "Users can view own sell requests" ON sell_requests FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own sell requests" ON sell_requests FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Admins can manage sell requests" ON sell_requests FOR ALL USING (
+  (auth.jwt()->>'email') = 'kitaabkharido41@gmail.com'
+);`
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export function AdminDashboard({ userId, userName }: { userId: string; userName?: string }) {
@@ -120,6 +208,10 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
   const [bookRequests, setBookRequests] = useState<BookRequest[]>([])
   const [sellRequests, setSellRequests] = useState<SellRequest[]>([])
   const [settings, setSettings] = useState<Record<string, string>>({})
+
+  // RLS Status
+  const [rlsStatus, setRlsStatus] = useState<{ usingServiceRole: boolean; hasRlsError: boolean; errors?: string[] } | null>(null)
+  const [copiedSql, setCopiedSql] = useState(false)
 
   // Book search & filter
   const [bookSearch, setBookSearch] = useState('')
@@ -174,9 +266,13 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
         data.settings.forEach((s: SiteSetting) => { if (s.key) map[s.key] = s.value || '' })
         setSettings(map)
       }
+
+      // Store RLS metadata
+      if (data._meta) {
+        setRlsStatus(data._meta)
+      }
     } catch (err) {
       console.error('Failed to fetch admin data:', err)
-      // Don't show toast for fetch errors - dashboard should still render
     } finally {
       setLoading(false)
     }
@@ -263,6 +359,7 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
       ...prev,
       image_urls: prev.image_urls.filter((_, i) => i !== index)
     }))
+    toast.success('Image removed')
   }
 
   // ── Book CRUD ───────────────────────────────────────────────────────
@@ -320,7 +417,14 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
           })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to save book')
+      if (!res.ok) {
+        const errMsg = data.error || 'Failed to save book'
+        // Detect RLS errors and show helpful message
+        if (errMsg.includes('recursion') || errMsg.includes('policy') || errMsg.includes('RLS')) {
+          throw new Error('RLS policy error — please add SUPABASE_SERVICE_ROLE_KEY to .env.local (see setup banner)')
+        }
+        throw new Error(errMsg)
+      }
 
       toast.success(editingBook ? 'Book updated' : 'Book created')
       setBookDialogOpen(false)
@@ -346,7 +450,13 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
         method: 'DELETE',
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to delete')
+      if (!res.ok) {
+        const errMsg = data.error || 'Failed to delete'
+        if (errMsg.includes('recursion') || errMsg.includes('policy') || errMsg.includes('RLS')) {
+          throw new Error('RLS policy error — please add SUPABASE_SERVICE_ROLE_KEY to .env.local')
+        }
+        throw new Error(errMsg)
+      }
 
       toast.success(`${deleteTarget.label} deleted`)
       setDeleteDialogOpen(false)
@@ -648,6 +758,68 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
           </div>
         </header>
 
+        {/* ─── RLS Setup Banner ────────────────────────────────────── */}
+        {rlsStatus && rlsStatus.hasRlsError && (
+          <div className="mx-4 mt-4 md:mx-8 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="size-5 text-red-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <h3 className="text-red-300 font-semibold text-sm">Database Access Error (RLS)</h3>
+                <p className="text-red-300/70 text-xs mt-1">
+                  Row Level Security policies are blocking admin operations. To fix this, you need to add your Supabase Service Role Key:
+                </p>
+                <ol className="text-red-300/60 text-xs mt-2 space-y-1 list-decimal list-inside">
+                  <li>Go to <span className="text-red-300/80 font-medium">Supabase Dashboard → Settings → API</span></li>
+                  <li>Find <span className="text-red-300/80 font-mono">service_role</span> key (secret)</li>
+                  <li>Add to your <span className="text-red-300/80 font-mono">.env.local</span> file:
+                  </li>
+                </ol>
+                <code className="block mt-2 px-3 py-2 bg-black/30 rounded-lg text-red-300/80 text-xs font-mono">
+                  SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIs...
+                </code>
+                <p className="text-red-300/50 text-xs mt-2">Then restart the dev server for changes to take effect.</p>
+                <div className="flex items-center gap-2 mt-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-red-500/30 text-red-300 hover:bg-red-500/20 text-xs"
+                    onClick={async () => {
+                      const sql = RLS_FIX_SQL
+                      await navigator.clipboard.writeText(sql)
+                      setCopiedSql(true)
+                      setTimeout(() => setCopiedSql(false), 2000)
+                    }}
+                  >
+                    {copiedSql ? <Check className="size-3" /> : <Copy className="size-3" />}
+                    {copiedSql ? 'Copied!' : 'Copy RLS Fix SQL'}
+                  </Button>
+                  <span className="text-red-300/40 text-xs">Or run this SQL in Supabase SQL Editor</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {rlsStatus && !rlsStatus.hasRlsError && !rlsStatus.usingServiceRole && (
+          <div className="mx-4 mt-4 md:mx-8 p-3 bg-amber/10 border border-amber/30 rounded-xl">
+            <div className="flex items-center gap-2">
+              <ShieldX className="size-4 text-amber" />
+              <p className="text-amber/80 text-xs">
+                Running with anon key (RLS active). For reliable admin access, add <code className="font-mono bg-black/20 px-1 rounded">SUPABASE_SERVICE_ROLE_KEY</code> to <code className="font-mono bg-black/20 px-1 rounded">.env.local</code>
+              </p>
+            </div>
+          </div>
+        )}
+
+        {rlsStatus && rlsStatus.usingServiceRole && (
+          <div className="mx-4 mt-4 md:mx-8 p-2 bg-green-500/10 border border-green-500/20 rounded-lg">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="size-3.5 text-green-400" />
+              <p className="text-green-400/80 text-xs">Service role active — full database access (RLS bypassed)</p>
+            </div>
+          </div>
+        )}
+
         {/* Scrollable Content */}
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
 
@@ -794,7 +966,11 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
                     </thead>
                     <tbody>
                       {filteredBooks.length === 0 ? (
-                        <tr><td colSpan={10} className="px-4 py-8 text-center text-white/30">No books found</td></tr>
+                        <tr><td colSpan={10} className="px-4 py-12 text-center">
+                          <BookX className="size-10 text-white/15 mx-auto mb-3" />
+                          <p className="text-white/30 font-medium">No books found</p>
+                          <p className="text-white/20 text-xs mt-1">{bookSearch ? 'Try a different search term' : 'Click "Add Book" to get started'}</p>
+                        </td></tr>
                       ) : (
                         filteredBooks.map(book => (
                           <tr key={book.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
@@ -858,7 +1034,11 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
                     </thead>
                     <tbody>
                       {orders.length === 0 ? (
-                        <tr><td colSpan={8} className="px-4 py-8 text-center text-white/30">No orders yet</td></tr>
+                        <tr><td colSpan={8} className="px-4 py-12 text-center">
+                          <Inbox className="size-10 text-white/15 mx-auto mb-3" />
+                          <p className="text-white/30 font-medium">No orders yet</p>
+                          <p className="text-white/20 text-xs mt-1">Orders will appear here when customers place them</p>
+                        </td></tr>
                       ) : (
                         orders.map(order => (
                           <tr key={order.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
@@ -1252,18 +1432,21 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
                 {bookForm.image_urls.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {bookForm.image_urls.map((url, idx) => (
-                      <div key={idx} className="relative group w-20 h-20 rounded-lg overflow-hidden border border-white/10">
+                      <div key={idx} className="relative group w-24 h-24 rounded-lg overflow-hidden border border-white/10 hover:border-red-400/40 transition-colors">
                         <img src={url} alt={`Book image ${idx + 1}`} className="w-full h-full object-cover" />
                         <button
                           type="button"
                           onClick={() => removeImage(idx)}
-                          className="absolute top-1 right-1 bg-red-500/80 hover:bg-red-500 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute top-1 right-1 bg-red-500/90 hover:bg-red-500 rounded-full p-1 shadow-lg transition-all hover:scale-110"
+                          title="Remove image"
                         >
                           <X className="size-3 text-white" />
                         </button>
-                        <span className="absolute bottom-1 left-1 text-[10px] text-white/60 bg-black/50 rounded px-1">
-                          {idx === 0 ? 'Cover' : `#${idx + 1}`}
-                        </span>
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent py-0.5 px-1">
+                          <span className="text-[10px] text-white/90 font-medium">
+                            {idx === 0 ? 'Cover' : `#${idx + 1}`}
+                          </span>
+                        </div>
                       </div>
                     ))}
                   </div>

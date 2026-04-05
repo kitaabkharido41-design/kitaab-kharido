@@ -15,6 +15,7 @@ import {
   BookPlus,
   BookOpenText,
   ShieldCheck,
+  Gift,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -41,6 +42,7 @@ export function Navbar() {
     openDashboard,
     openSellBook,
     openRequestBook,
+    openRequestEbook,
   } = useStore()
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -51,6 +53,7 @@ export function Navbar() {
   const navLinks = [
     { href: '/', label: 'Home' },
     { href: '/books', label: 'Books' },
+    { href: '#ebooks', label: 'Free Ebooks', icon: Gift, action: openRequestEbook },
   ]
 
   const isActive = (href: string) => {
@@ -74,19 +77,33 @@ export function Navbar() {
 
             {/* Desktop Nav */}
             <nav className="hidden md:flex items-center gap-1">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                    isActive(link.href)
-                      ? 'text-amber bg-amber/10'
-                      : 'text-white/70 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              ))}
+              {navLinks.map((link) => {
+                if (link.action) {
+                  return (
+                    <button
+                      key={link.href}
+                      onClick={link.action}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors text-amber/90 hover:text-amber hover:bg-amber/10"
+                    >
+                      {link.icon && <link.icon className="size-4" />}
+                      {link.label}
+                    </button>
+                  )
+                }
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      isActive(link.href)
+                        ? 'text-amber bg-amber/10'
+                        : 'text-white/70 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                )
+              })}
             </nav>
 
             {/* Desktop Actions */}
@@ -274,22 +291,39 @@ export function Navbar() {
               <p className="text-xs font-semibold text-white/30 uppercase tracking-wider px-3 mb-2">
                 Navigation
               </p>
-              {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setMobileOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    isActive(link.href)
-                      ? 'text-amber bg-amber/10'
-                      : 'text-white/70 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  {link.href === '/' && <HomeIcon className="size-4" />}
-                  {link.href === '/books' && <BookOpen className="size-4" />}
-                  {link.label}
-                </Link>
-              ))}
+              {navLinks.map((link) => {
+                if (link.action) {
+                  return (
+                    <button
+                      key={link.href}
+                      onClick={() => {
+                        setMobileOpen(false)
+                        link.action()
+                      }}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-amber/80 hover:text-amber hover:bg-amber/10 transition-colors w-full"
+                    >
+                      {link.icon && <link.icon className="size-4" />}
+                      {link.label}
+                    </button>
+                  )
+                }
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMobileOpen(false)}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                      isActive(link.href)
+                        ? 'text-amber bg-amber/10'
+                        : 'text-white/70 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    {link.href === '/' && <HomeIcon className="size-4" />}
+                    {link.href === '/books' && <BookOpen className="size-4" />}
+                    {link.label}
+                  </Link>
+                )
+              })}
             </div>
 
             {/* Admin Link */}
@@ -332,6 +366,16 @@ export function Navbar() {
               >
                 <BookOpenText className="size-4" />
                 Request a Book
+              </button>
+              <button
+                onClick={() => {
+                  setMobileOpen(false)
+                  openRequestEbook()
+                }}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-amber/80 hover:text-amber hover:bg-amber/5 w-full transition-colors"
+              >
+                <Gift className="size-4" />
+                Free Ebooks 🎁
               </button>
               <button
                 onClick={() => {

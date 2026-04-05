@@ -22,6 +22,7 @@ export interface UIState {
   sellBookOpen: boolean
   bookDetailOpen: boolean
   selectedBookId: string | null
+  requestEbookOpen: boolean
 }
 
 interface StoreState {
@@ -52,6 +53,8 @@ interface StoreState {
   closeRequestBook: () => void
   openSellBook: () => void
   closeSellBook: () => void
+  openRequestEbook: () => void
+  closeRequestEbook: () => void
 }
 
 export const useStore = create<StoreState>()(
@@ -113,6 +116,7 @@ export const useStore = create<StoreState>()(
         sellBookOpen: false,
         bookDetailOpen: false,
         selectedBookId: null,
+        requestEbookOpen: false,
       },
       setUI: (partial) =>
         set({ ui: { ...get().ui, ...partial } }),
@@ -136,6 +140,10 @@ export const useStore = create<StoreState>()(
         set({ ui: { ...get().ui, sellBookOpen: true } }),
       closeSellBook: () =>
         set({ ui: { ...get().ui, sellBookOpen: false } }),
+      openRequestEbook: () =>
+        set({ ui: { ...get().ui, requestEbookOpen: true } }),
+      closeRequestEbook: () =>
+        set({ ui: { ...get().ui, requestEbookOpen: false } }),
     }),
     {
       name: 'kitaab-kharido-store',

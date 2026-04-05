@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useStore } from '@/store'
 import { BookGrid } from '@/components/features/book-grid'
+import { FreeEbooksSection } from '@/components/features/free-ebooks-section'
 import { CATEGORIES } from '@/lib/supabase/types'
 import type { Book } from '@/lib/supabase/types'
 
@@ -143,6 +144,9 @@ export function HomeContent({ books, settings }: HomeContentProps) {
           <BookGrid books={filteredBooks} />
         </motion.div>
       </section>
+
+      {/* ── Free Ebooks Section ── */}
+      <FreeEbooksSection />
 
       {/* ── CTA Cards ── */}
       <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8 lg:pb-20">

@@ -1,11 +1,12 @@
 #!/bin/bash
+# Keepalive script for the dev server
 cd /home/z/my-project
 while true; do
-  if ! ss -tlnp | grep -q ":3000 "; then
-    echo "$(date): Server not running, starting..." >> /home/z/my-project/dev.log
-    bun run dev >> /home/z/my-project/dev.log 2>&1 &
-    BUN_PID=$!
-    echo "$(date): Started with PID $BUN_PID" >> /home/z/my-project/dev.log
+  if ! pgrep -f "next dev" > /dev/null; then
+    echo "$(date): Server not running, starting..." >> /home/z/my-project/server.log
+    rm -f dev.log
+    bun run dev > /dev/null 2>&1 &
+    disown
   fi
-  sleep 5
+  sleep 10
 done

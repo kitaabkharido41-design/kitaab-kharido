@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
 // Known admin emails that can be auto-promoted
@@ -8,10 +9,11 @@ const ADMIN_EMAILS = [
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
+    // Use server client only for auth check (reads session cookies)
+    const serverSupabase = await createClient()
 
     // Verify the user is logged in
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = await serverSupabase.auth.getUser()
     if (!user) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
@@ -20,6 +22,9 @@ export async function POST(request: NextRequest) {
     if (!ADMIN_EMAILS.includes(user.email || '')) {
       return NextResponse.json({ error: 'Not authorized for admin setup' }, { status: 403 })
     }
+
+    // Use admin client for all database operations (bypasses RLS)
+    const supabase = await createAdminClient()
 
     // Try to update the profile to set is_admin = true
     const { data: profile, error: fetchError } = await supabase
@@ -44,7 +49,6 @@ export async function POST(request: NextRequest) {
       if (insertError) {
         return NextResponse.json({
           error: `Failed to create profile: ${insertError.message}`,
-          hint: 'You may need to run the SQL setup script in Supabase SQL Editor. See supabase-setup.sql in the project root.',
           userId: user.id,
           email: user.email,
         }, { status: 500 })
@@ -69,7 +73,6 @@ export async function POST(request: NextRequest) {
       if (updateError) {
         return NextResponse.json({
           error: `Failed to update admin status: ${updateError.message}`,
-          hint: 'RLS policy may be blocking the update. Run the SQL in supabase-setup.sql to fix this.',
           userId: user.id,
           email: user.email,
           currentIsAdmin: profile.is_admin,

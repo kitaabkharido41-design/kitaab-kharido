@@ -12,15 +12,11 @@ interface BookCardProps {
 }
 
 export function BookCard({ book }: BookCardProps) {
-  const { addToCart, toggleWishlist, isInWishlist, openAuthModal, openCart } = useStore()
+  const { addToCart, toggleWishlist, isInWishlist, openCart, openAuthModal } = useStore()
   const { user } = useAuth()
   const wishlisted = isInWishlist(book.id)
 
   const handleAddToCart = () => {
-    if (!user) {
-      openAuthModal('login')
-      return
-    }
     addToCart({
       id: Date.now().toString(),
       bookId: book.id,
@@ -35,10 +31,6 @@ export function BookCard({ book }: BookCardProps) {
   }
 
   const handleBuyNow = () => {
-    if (!user) {
-      openAuthModal('login')
-      return
-    }
     addToCart({
       id: Date.now().toString(),
       bookId: book.id,
@@ -56,14 +48,11 @@ export function BookCard({ book }: BookCardProps) {
   const handleWishlist = () => {
     if (!user) {
       openAuthModal('login')
+      toast('Login to add to wishlist')
       return
     }
     toggleWishlist(book.id)
-    if (wishlisted) {
-      toast.success('Removed from wishlist')
-    } else {
-      toast.success('Added to wishlist!')
-    }
+    toast.success(wishlisted ? 'Removed from wishlist' : 'Added to wishlist!')
   }
 
   return (
@@ -82,19 +71,19 @@ export function BookCard({ book }: BookCardProps) {
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground">
-            <BookOpen className="h-12 w-12 opacity-30" />
-            <span className="text-xs opacity-40">No Image</span>
+            <BookOpen className="h-10 w-10 sm:h-12 sm:w-12 opacity-30" />
+            <span className="text-[10px] sm:text-xs opacity-40">No Image</span>
           </div>
         )}
 
         {/* Category Badge — top-left */}
-        <span className="absolute top-2 left-2 rounded bg-amber px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-navy shadow-sm">
+        <span className="absolute top-1.5 left-1.5 sm:top-2 sm:left-2 rounded bg-amber px-1.5 py-0.5 sm:px-2 sm:py-0.5 text-[9px] sm:text-[10px] font-semibold uppercase tracking-wide text-navy shadow-sm">
           {book.category}
         </span>
 
         {/* Discount Badge — top-right */}
         {book.discount_tag && (
-          <span className="absolute top-2 right-2 rounded bg-emerald-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+          <span className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 rounded bg-emerald-500 px-1.5 py-0.5 sm:px-2 sm:py-0.5 text-[9px] sm:text-[10px] font-bold text-white shadow-sm">
             {book.discount_tag}
           </span>
         )}
@@ -102,11 +91,11 @@ export function BookCard({ book }: BookCardProps) {
         {/* Wishlist Button — overlay on image */}
         <button
           onClick={handleWishlist}
-          className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full bg-navy/70 backdrop-blur-sm transition-all duration-200 hover:bg-navy/90 hover:scale-110"
+          className="absolute bottom-1.5 right-1.5 sm:bottom-2 sm:right-2 flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-navy/70 backdrop-blur-sm transition-all duration-200 hover:bg-navy/90 hover:scale-110"
           aria-label={wishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
         >
           <Heart
-            className={`h-4 w-4 transition-colors duration-200 ${
+            className={`h-3.5 w-3.5 sm:h-4 sm:w-4 transition-colors duration-200 ${
               wishlisted
                 ? 'fill-red-500 text-red-500'
                 : 'text-white/70 hover:text-white'
@@ -116,26 +105,26 @@ export function BookCard({ book }: BookCardProps) {
       </div>
 
       {/* Info Section */}
-      <div className="flex flex-1 flex-col gap-1.5 p-3">
-        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-white">
+      <div className="flex flex-1 flex-col gap-1 sm:gap-1.5 p-2.5 sm:p-3">
+        <h3 className="line-clamp-2 text-xs sm:text-sm font-semibold leading-snug text-white">
           {book.title}
         </h3>
-        <p className="line-clamp-1 text-xs text-muted-foreground">
+        <p className="line-clamp-1 text-[11px] sm:text-xs text-muted-foreground">
           {book.author}
         </p>
 
         {/* Condition Tag */}
-        <span className="inline-block w-fit rounded bg-navy-hover px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+        <span className="inline-block w-fit rounded bg-navy-hover px-1.5 py-0.5 text-[9px] sm:text-[10px] font-medium text-muted-foreground">
           {book.condition}
         </span>
 
         {/* Price Row */}
-        <div className="mt-auto flex items-baseline gap-2 pt-1">
-          <span className="text-lg font-bold text-amber">
+        <div className="mt-auto flex items-baseline gap-1.5 sm:gap-2 pt-1">
+          <span className="text-base sm:text-lg font-bold text-amber">
             ₹{Number(book.price).toLocaleString('en-IN')}
           </span>
           {book.original_price > book.price && (
-            <span className="text-xs text-muted-foreground line-through">
+            <span className="text-[11px] sm:text-xs text-muted-foreground line-through">
               ₹{Number(book.original_price).toLocaleString('en-IN')}
             </span>
           )}
@@ -143,20 +132,22 @@ export function BookCard({ book }: BookCardProps) {
       </div>
 
       {/* Action Buttons */}
-      <div className="flex gap-2 border-t border-white/5 p-3 pt-2">
+      <div className="flex gap-1.5 sm:gap-2 border-t border-white/5 p-2.5 sm:p-3 sm:pt-2">
         <button
           onClick={handleAddToCart}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-amber/30 bg-transparent px-3 py-2 text-xs font-medium text-amber transition-all duration-200 hover:bg-amber/10 hover:border-amber/50"
+          className="flex flex-1 items-center justify-center gap-1 sm:gap-1.5 rounded-md border border-amber/30 bg-transparent px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-xs font-medium text-amber transition-all duration-200 hover:bg-amber/10 hover:border-amber/50"
         >
-          <ShoppingCart className="h-3.5 w-3.5" />
-          Add to Cart
+          <ShoppingCart className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+          <span className="hidden xs:inline sm:inline">Add to Cart</span>
+          <span className="xs:hidden sm:hidden">Cart</span>
         </button>
         <button
           onClick={handleBuyNow}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-amber px-3 py-2 text-xs font-semibold text-navy transition-all duration-200 hover:bg-amber-light hover:shadow-[0_0_15px_rgba(245,158,11,0.3)]"
+          className="flex flex-1 items-center justify-center gap-1 sm:gap-1.5 rounded-md bg-amber px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-xs font-semibold text-navy transition-all duration-200 hover:bg-amber-light hover:shadow-[0_0_15px_rgba(245,158,11,0.3)]"
         >
-          <Zap className="h-3.5 w-3.5" />
-          Buy Now
+          <Zap className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+          <span className="hidden xs:inline sm:inline">Buy Now</span>
+          <span className="xs:hidden sm:hidden">Buy</span>
         </button>
       </div>
     </motion.div>

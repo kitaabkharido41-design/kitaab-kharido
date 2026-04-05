@@ -130,3 +130,82 @@ Stage Summary:
 - All public APIs now use service role key (RLS bypassed) instead of anon key
 - Database seeded with 6 demo books, 3 hero slides, and 5 site settings
 - Seed endpoint is idempotent and handles constraint errors gracefully
+
+---
+## Task ID: 5
+Agent: Full-Stack Fix Agent
+Task: Fix Add to Cart, responsive design, admin book creation, and all API routes
+
+### Work Task
+Fix multiple reported issues:
+1. Add to Cart doesn't work
+2. Buy button sizing issues on mobile (not responsive)
+3. Admin panel RLS errors (service role key already hardcoded)
+4. Can't add books in admin
+5. Website not responsive
+
+### Work Summary
+
+**1. Fixed Add to Cart (`src/components/features/book-card.tsx`):**
+- **Root cause**: `handleAddToCart` and `handleBuyNow` required user authentication (`if (!user)`) before adding to cart, opening auth modal instead
+- **Fix**: Removed auth requirement from Add to Cart and Buy Now — login only required at checkout
+- Wishlist still requires login (sensible UX — login required at checkout)
+- Cart now works without authentication using zustand + localStorage persistence
+
+**2. Fixed Responsive Design:**
+- **Book Card** (`src/components/features/book-card.tsx`): 
+  - Reduced button text on mobile: "Add to Cart" → "Cart" on xs, full text on sm+
+  - "Buy Now" → "Buy" on xs, full text on sm+
+  - Smaller padding: `px-2 py-1.5` on mobile, `px-3 py-2` on sm+
+  - Smaller text: `text-[10px]` on mobile, `text-xs` on sm+
+  - Smaller icons: `h-3 w-3` on mobile, `h-3.5 w-3.5` on sm+
+  - Smaller badges, prices, and info text
+  - Tighter card padding: `p-2.5` on mobile, `p-3` on sm+
+
+- **Book Grid** (`src/components/features/book-grid.tsx`):
+  - Tighter gaps: `gap-3` on mobile, `gap-4` on sm+
+  - Smaller skeleton cards on mobile
+  - Smaller empty state on mobile
+
+- **Cart Drawer** (`src/components/features/cart-drawer.tsx`):
+  - Fully responsive: compact padding, smaller text, smaller controls on mobile
+  - Checkout form inputs: `h-8` on mobile, `h-9` on sm+
+  - Smaller quantity controls: `w-6 h-6` on mobile, `w-7 h-7` on sm+
+
+**3. Created Orders API (`src/app/api/orders/route.ts`):**
+- New POST endpoint for placing orders via cart checkout
+- Uses `createAdminClient` (service role key) to bypass RLS
+- Creates order + order_items in a transactional manner
+- Also updates user profile with shipping details (best-effort)
+- Proper validation for required fields
+
+**4. Fixed Cart Checkout (`src/components/features/cart-drawer.tsx`):**
+- **Before**: Used `createClient()` from `@/lib/supabase/client` (browser client with anon key, subject to RLS)
+- **After**: Uses `fetch('/api/orders', { method: 'POST' })` → API route uses admin client
+- Removed direct Supabase client dependency from checkout
+- Login still required at checkout (not at add-to-cart)
+- Shipping form is now empty by default (not pre-filled from profile)
+
+**5. Fixed API Routes to Use Admin Client:**
+- `/api/admin/grant/route.ts` — Changed to use `createAdminClient` for database operations, kept server client only for auth check
+- `/api/admin/setup/route.ts` — Changed to use `createAdminClient` for all database operations
+- `/api/admin/check/route.ts` — Kept server client (only used for `auth.getUser()`, no DB operations)
+- All other API routes already used `createAdminClient` — verified correct
+
+**6. Admin Book Form:**
+- Verified admin book form dialog is correct: has proper fields, image upload, Switch toggles, and DialogFooter with Save/Cancel buttons
+- The `saveBook` function correctly sends payload to `/api/admin/books` API route
+- API route uses `createAdminClient` — works without RLS issues
+
+**7. Database Seeded:**
+- Successfully seeded 6 demo books, 3 hero slides, 5 site settings
+- All APIs returning data correctly
+- Lint passes clean, no errors
+
+### Files Modified:
+- `src/components/features/book-card.tsx` — Removed auth gate, improved mobile UX
+- `src/components/features/book-grid.tsx` — Responsive grid gaps and skeleton sizing
+- `src/components/features/cart-drawer.tsx` — New checkout via API route, responsive
+- `src/app/api/orders/route.ts` — NEW: Order placement API
+- `src/app/api/admin/grant/route.ts` — Uses admin client for DB ops
+- `src/app/api/admin/setup/route.ts` — Uses admin client for DB ops

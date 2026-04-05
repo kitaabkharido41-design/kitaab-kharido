@@ -9,9 +9,10 @@ const ADMIN_EMAILS = new Set([
 
 export async function GET(_request: NextRequest) {
   try {
+    // Use the server client only for auth.getUser() — it reads from session cookies.
+    // This is safe because it doesn't touch any RLS-protected tables.
     const supabase = await createClient()
 
-    // Get the currently logged-in user from session cookies
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       return NextResponse.json({

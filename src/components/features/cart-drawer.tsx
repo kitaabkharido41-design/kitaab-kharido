@@ -19,7 +19,6 @@ import {
 
 import { useStore, type CartItem } from '@/store'
 import { useAuth } from '@/components/providers/auth-provider'
-import { createClient } from '@/lib/supabase/client'
 import { DELIVERY_CHARGE } from '@/lib/supabase/types'
 
 import {
@@ -53,7 +52,7 @@ export function CartDrawer() {
     getCartCount,
     openAuthModal,
   } = useStore()
-  const { user, profile } = useAuth()
+  const { user } = useAuth()
 
   const [view, setView] = useState<DrawerView>('cart')
   const [confirmedOrderNumber, setConfirmedOrderNumber] = useState('')
@@ -63,6 +62,15 @@ export function CartDrawer() {
   const subtotal = getCartTotal()
   const delivery = DELIVERY_CHARGE
   const total = subtotal + delivery
+
+  const handleCheckoutClick = () => {
+    if (!user) {
+      openAuthModal('login')
+      toast('Please login to proceed to checkout')
+      return
+    }
+    setView('checkout')
+  }
 
   const handleCheckoutSuccess = (orderNumber: string) => {
     setConfirmedOrderNumber(orderNumber)
@@ -88,14 +96,14 @@ export function CartDrawer() {
         {/* ── Cart View ──────────────────────────────────────────────── */}
         {view === 'cart' && (
           <>
-            <SheetHeader className="px-5 pt-5 pb-3 shrink-0">
+            <SheetHeader className="px-4 sm:px-5 pt-4 sm:pt-5 pb-3 shrink-0">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <ShoppingBag className="size-5 text-amber" />
-                  <SheetTitle className="text-lg font-semibold text-white">
+                <div className="flex items-center gap-2 sm:gap-2.5">
+                  <ShoppingBag className="size-4 sm:size-5 text-amber" />
+                  <SheetTitle className="text-base sm:text-lg font-semibold text-white">
                     Your Cart
                   </SheetTitle>
-                  <Badge className="bg-amber/15 text-amber border-amber/20 text-xs">
+                  <Badge className="bg-amber/15 text-amber border-amber/20 text-[10px] sm:text-xs">
                     {itemCount}
                   </Badge>
                 </div>
@@ -103,9 +111,9 @@ export function CartDrawer() {
                   variant="ghost"
                   size="icon"
                   onClick={closeCart}
-                  className="text-muted-foreground hover:text-white hover:bg-white/5 -mr-1.5"
+                  className="text-muted-foreground hover:text-white hover:bg-white/5 -mr-1.5 size-8 sm:size-9"
                 >
-                  <X className="size-5" />
+                  <X className="size-4 sm:size-5" />
                 </Button>
               </div>
               <SheetDescription className="sr-only">
@@ -125,37 +133,31 @@ export function CartDrawer() {
 
             {/* Order summary footer – always visible when cart has items */}
             {cart.length > 0 && (
-              <div className="shrink-0 border-t border-white/[0.06] bg-[#080e20] px-5 py-4 space-y-3">
-                <div className="flex items-center justify-between text-sm">
+              <div className="shrink-0 border-t border-white/[0.06] bg-[#080e20] px-4 sm:px-5 py-3 sm:py-4 space-y-2 sm:space-y-3">
+                <div className="flex items-center justify-between text-xs sm:text-sm">
                   <span className="text-muted-foreground">Subtotal</span>
-                  <span className="text-white font-medium">
+                  <span className="text-white font-medium text-sm sm:text-base">
                     ₹{subtotal.toLocaleString('en-IN')}
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center justify-between text-xs sm:text-sm">
                   <span className="text-muted-foreground flex items-center gap-1.5">
-                    <Truck className="size-3.5" />
+                    <Truck className="size-3 sm:size-3.5" />
                     Delivery
                   </span>
                   <span className="text-white font-medium">₹{delivery}</span>
                 </div>
                 <Separator className="bg-white/[0.06]" />
                 <div className="flex items-center justify-between">
-                  <span className="text-white font-semibold">Grand Total</span>
-                  <span className="text-amber font-bold text-lg">
+                  <span className="text-white font-semibold text-sm sm:text-base">Grand Total</span>
+                  <span className="text-amber font-bold text-base sm:text-lg">
                     ₹{total.toLocaleString('en-IN')}
                   </span>
                 </div>
 
                 <Button
-                  className="w-full h-11 bg-amber hover:bg-amber-dark text-navy font-semibold text-sm mt-1"
-                  onClick={() => {
-                    if (!user) {
-                      openAuthModal('login')
-                      return
-                    }
-                    setView('checkout')
-                  }}
+                  className="w-full h-10 sm:h-11 bg-amber hover:bg-amber-dark text-navy font-semibold text-sm mt-1"
+                  onClick={handleCheckoutClick}
                 >
                   Proceed to Checkout
                 </Button>
@@ -171,8 +173,6 @@ export function CartDrawer() {
             subtotal={subtotal}
             delivery={delivery}
             total={total}
-            profile={profile}
-            user={user}
             onBack={() => setView('cart')}
             onSuccess={handleCheckoutSuccess}
             onClose={closeCart}
@@ -198,19 +198,19 @@ export function CartDrawer() {
 function EmptyCartState({ onClose }: { onClose: () => void }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 text-center">
-      <div className="w-20 h-20 rounded-full bg-white/[0.04] flex items-center justify-center">
-        <ShoppingBag className="size-10 text-muted-foreground" />
+      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/[0.04] flex items-center justify-center">
+        <ShoppingBag className="size-8 sm:size-10 text-muted-foreground" />
       </div>
       <div className="space-y-1">
-        <p className="text-white font-medium text-lg">Your cart is empty</p>
-        <p className="text-muted-foreground text-sm">
+        <p className="text-white font-medium text-base sm:text-lg">Your cart is empty</p>
+        <p className="text-muted-foreground text-xs sm:text-sm">
           Looks like you haven&apos;t added any books yet.
         </p>
       </div>
       <Link href="/books" onClick={onClose}>
         <Button
           variant="outline"
-          className="mt-2 border-amber/30 text-amber hover:bg-amber/10 hover:text-amber"
+          className="mt-2 border-amber/30 text-amber hover:bg-amber/10 hover:text-amber text-sm"
         >
           Browse Books
         </Button>
@@ -233,12 +233,12 @@ function CartItemsList({
 }) {
   return (
     <ScrollArea className="flex-1">
-      <div className="px-5 pb-4">
+      <div className="px-4 sm:px-5 pb-4">
         {items.map((item, idx) => (
           <div key={item.bookId}>
-            <div className="flex gap-3 py-3.5">
+            <div className="flex gap-2.5 sm:gap-3 py-3 sm:py-3.5">
               {/* Thumbnail */}
-              <div className="relative w-12 h-16 rounded-md overflow-hidden shrink-0 bg-white/[0.04] flex items-center justify-center">
+              <div className="relative w-10 h-14 sm:w-12 sm:h-16 rounded-md overflow-hidden shrink-0 bg-white/[0.04] flex items-center justify-center">
                 {item.imageUrl ? (
                   <Image
                     src={item.imageUrl}
@@ -248,10 +248,10 @@ function CartItemsList({
                     sizes="48px"
                   />
                 ) : (
-                  <ShoppingBag className="size-5 text-muted-foreground/50" />
+                  <ShoppingBag className="size-4 sm:size-5 text-muted-foreground/50" />
                 )}
                 {item.discountTag && (
-                  <span className="absolute top-0 right-0 bg-red-500 text-white text-[9px] font-bold px-1 py-px leading-tight rounded-bl">
+                  <span className="absolute top-0 right-0 bg-red-500 text-white text-[8px] sm:text-[9px] font-bold px-0.5 sm:px-1 py-px leading-tight rounded-bl">
                     {item.discountTag}
                   </span>
                 )}
@@ -259,60 +259,60 @@ function CartItemsList({
 
               {/* Details */}
               <div className="flex-1 min-w-0">
-                <p className="text-white text-sm font-medium leading-tight line-clamp-1">
+                <p className="text-white text-xs sm:text-sm font-medium leading-tight line-clamp-1">
                   {item.title}
                 </p>
-                <p className="text-muted-foreground text-xs mt-0.5 line-clamp-1">
+                <p className="text-muted-foreground text-[11px] sm:text-xs mt-0.5 line-clamp-1">
                   {item.author}
                 </p>
 
                 {/* Price row */}
-                <div className="flex items-center justify-between mt-2">
-                  <div className="text-sm">
+                <div className="flex items-center justify-between mt-1.5 sm:mt-2">
+                  <div className="text-xs sm:text-sm">
                     <span className="text-amber font-semibold">
                       ₹{item.price.toLocaleString('en-IN')}
                     </span>
-                    <span className="text-muted-foreground text-xs ml-1">
+                    <span className="text-muted-foreground text-[11px] sm:text-xs ml-1">
                       × {item.quantity}
                     </span>
-                    <span className="text-white/80 text-xs ml-1.5">
+                    <span className="text-white/80 text-[11px] sm:text-xs ml-1 sm:ml-1.5">
                       = ₹{(item.price * item.quantity).toLocaleString('en-IN')}
                     </span>
                   </div>
                 </div>
 
                 {/* Controls row */}
-                <div className="flex items-center gap-2 mt-1.5">
+                <div className="flex items-center gap-2 mt-1 sm:mt-1.5">
                   <div className="flex items-center rounded-md border border-white/10 overflow-hidden">
                     <button
                       onClick={() =>
                         onUpdateQuantity(item.bookId, item.quantity - 1)
                       }
-                      className="w-7 h-7 flex items-center justify-center text-muted-foreground hover:text-white hover:bg-white/5 transition-colors"
+                      className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-muted-foreground hover:text-white hover:bg-white/5 transition-colors"
                       aria-label="Decrease quantity"
                     >
-                      <Minus className="size-3" />
+                      <Minus className="size-2.5 sm:size-3" />
                     </button>
-                    <span className="w-7 text-center text-xs font-medium text-white select-none">
+                    <span className="w-6 sm:w-7 text-center text-[11px] sm:text-xs font-medium text-white select-none">
                       {item.quantity}
                     </span>
                     <button
                       onClick={() =>
                         onUpdateQuantity(item.bookId, item.quantity + 1)
                       }
-                      className="w-7 h-7 flex items-center justify-center text-muted-foreground hover:text-white hover:bg-white/5 transition-colors"
+                      className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-muted-foreground hover:text-white hover:bg-white/5 transition-colors"
                       aria-label="Increase quantity"
                     >
-                      <Plus className="size-3" />
+                      <Plus className="size-2.5 sm:size-3" />
                     </button>
                   </div>
 
                   <button
                     onClick={() => onRemove(item.bookId)}
-                    className="ml-auto w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                    className="ml-auto w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-red-400 hover:bg-red-400/10 transition-colors"
                     aria-label={`Remove ${item.title} from cart`}
                   >
-                    <Trash2 className="size-3.5" />
+                    <Trash2 className="size-3 sm:size-3.5" />
                   </button>
                 </div>
               </div>
@@ -328,15 +328,13 @@ function CartItemsList({
 }
 
 // =====================================================================
-// Checkout View
+// Checkout View — uses API route instead of direct Supabase client
 // =====================================================================
 function CheckoutView({
   cart,
   subtotal,
   delivery,
   total,
-  profile,
-  user,
   onBack,
   onSuccess,
   onClose,
@@ -346,32 +344,24 @@ function CheckoutView({
   subtotal: number
   delivery: number
   total: number
-  profile: {
-    full_name: string | null
-    phone: string | null
-    address: string | null
-    city: string | null
-    pincode: string | null
-  } | null
-  user: { id: string } | null
   onBack: () => void
   onSuccess: (orderNumber: string) => void
   onClose: () => void
   clearCart: () => void
 }) {
+  const { user } = useAuth()
   const [placing, setPlacing] = useState(false)
 
-  // Shipping form state – initialised from profile on mount
-  // CheckoutView is remounted each time user enters checkout, so this is fresh
-  const [name, setName] = useState(() => profile?.full_name ?? '')
-  const [phone, setPhone] = useState(() => profile?.phone ?? '')
-  const [address, setAddress] = useState(() => profile?.address ?? '')
-  const [city, setCity] = useState(() => profile?.city ?? '')
-  const [pincode, setPincode] = useState(() => profile?.pincode ?? '')
+  // Shipping form state
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [address, setAddress] = useState('')
+  const [city, setCity] = useState('')
+  const [pincode, setPincode] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const inputClass =
-    'h-9 bg-white/[0.04] border-white/10 text-white placeholder:text-muted-foreground/50 text-sm focus-visible:border-amber/50 focus-visible:ring-amber/20'
+    'h-8 sm:h-9 bg-white/[0.04] border-white/10 text-white placeholder:text-muted-foreground/50 text-sm focus-visible:border-amber/50 focus-visible:ring-amber/20'
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {}
@@ -393,73 +383,48 @@ function CheckoutView({
     setPlacing(true)
 
     try {
-      const supabase = createClient()
-
-      // 1. Generate order number
+      // Generate order number
       const ordNum = `KK-${Date.now().toString(36).toUpperCase()}`
 
-      // 2. Save order
-      const { error: orderError } = await supabase.from('orders').insert({
-        user_id: user.id,
-        order_number: ordNum,
-        total_amount: subtotal,
-        delivery_charge: delivery,
-        grand_total: total,
-        payment_method: 'whatsapp',
-        payment_status: 'pending',
-        order_status: 'pending',
-        shipping_name: name.trim(),
-        shipping_phone: phone.trim(),
-        shipping_address: address.trim(),
-        shipping_city: city.trim(),
-        shipping_pincode: pincode.trim(),
+      // Call API route (uses admin client — bypasses RLS)
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: user.id,
+          order_number: ordNum,
+          total_amount: subtotal,
+          delivery_charge: delivery,
+          grand_total: total,
+          payment_method: 'whatsapp',
+          payment_status: 'pending',
+          order_status: 'pending',
+          shipping_name: name.trim(),
+          shipping_phone: phone.trim(),
+          shipping_address: address.trim(),
+          shipping_city: city.trim(),
+          shipping_pincode: pincode.trim(),
+          items: cart.map((item) => ({
+            book_id: item.bookId,
+            book_title: item.title,
+            book_author: item.author,
+            book_price: item.price,
+            book_original_price: item.originalPrice,
+            book_image_url: item.imageUrl,
+            quantity: item.quantity,
+          })),
+        }),
       })
 
-      if (orderError) throw orderError
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to place order')
+      }
 
-      // 3. Fetch the created order to get its ID for order_items
-      const { data: createdOrder } = await supabase
-        .from('orders')
-        .select('id')
-        .eq('order_number', ordNum)
-        .single()
-
-      if (!createdOrder)
-        throw new Error('Failed to retrieve created order')
-
-      // 4. Save order items
-      const orderItemsData = cart.map((item) => ({
-        order_id: createdOrder.id,
-        book_id: item.bookId,
-        book_title: item.title,
-        book_author: item.author,
-        book_price: item.price,
-        book_original_price: item.originalPrice,
-        book_image_url: item.imageUrl,
-        quantity: item.quantity,
-      }))
-
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItemsData)
-      if (itemsError) throw itemsError
-
-      // 5. Update user profile with shipping details
-      await supabase
-        .from('profiles')
-        .update({
-          full_name: name.trim(),
-          phone: phone.trim(),
-          address: address.trim(),
-          city: city.trim(),
-          pincode: pincode.trim(),
-        })
-        .eq('id', user.id)
-
-      // 6. Clear cart
+      // Clear cart
       clearCart()
 
-      // 7. Open WhatsApp with pre-filled message
+      // Open WhatsApp with pre-filled message
       const message = `📚 *New Order — KitaabKharido*
 
 *Order:* ${ordNum}
@@ -483,13 +448,13 @@ ${city.trim()} - ${pincode.trim()}`
         '_blank'
       )
 
-      // 8. Show success toast
+      // Show success toast
       toast.success('Order placed successfully!', {
         description: `Order ${ordNum} sent via WhatsApp for payment.`,
         duration: 6000,
       })
 
-      // 9. Switch to confirmation view
+      // Switch to confirmation view
       onSuccess(ordNum)
     } catch (err: unknown) {
       const message =
@@ -506,18 +471,18 @@ ${city.trim()} - ${pincode.trim()}`
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-5 pt-5 pb-3 shrink-0">
+      <div className="px-4 sm:px-5 pt-4 sm:pt-5 pb-3 shrink-0">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <Button
               variant="ghost"
               size="icon"
               onClick={onBack}
-              className="text-muted-foreground hover:text-white hover:bg-white/5 -ml-1.5"
+              className="text-muted-foreground hover:text-white hover:bg-white/5 -ml-1.5 size-8 sm:size-9"
             >
               <ArrowLeft className="size-4" />
             </Button>
-            <SheetTitle className="text-lg font-semibold text-white">
+            <SheetTitle className="text-base sm:text-lg font-semibold text-white">
               Checkout
             </SheetTitle>
           </div>
@@ -525,32 +490,29 @@ ${city.trim()} - ${pincode.trim()}`
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="text-muted-foreground hover:text-white hover:bg-white/5 -mr-1.5"
+            className="text-muted-foreground hover:text-white hover:bg-white/5 -mr-1.5 size-8 sm:size-9"
           >
-            <X className="size-5" />
+            <X className="size-4 sm:size-5" />
           </Button>
         </div>
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="px-5 pb-6 space-y-5">
+        <div className="px-4 sm:px-5 pb-6 space-y-4 sm:space-y-5">
           {/* ── Shipping Details ──────────────────────────────────── */}
           <section>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                <Truck className="size-4 text-amber" />
+            <div className="flex items-center justify-between mb-2.5 sm:mb-3">
+              <h3 className="text-xs sm:text-sm font-semibold text-white flex items-center gap-1.5 sm:gap-2">
+                <Truck className="size-3.5 sm:size-4 text-amber" />
                 Shipping Details
               </h3>
-              <span className="text-xs text-muted-foreground cursor-pointer hover:text-white transition-colors">
-                Edit
-              </span>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2.5 sm:space-y-3">
               <div>
                 <Label
                   htmlFor="shipping-name"
-                  className="text-xs text-muted-foreground mb-1"
+                  className="text-[11px] sm:text-xs text-muted-foreground mb-1"
                 >
                   Full Name
                 </Label>
@@ -565,14 +527,14 @@ ${city.trim()} - ${pincode.trim()}`
                   className={inputClass}
                 />
                 {errors.name && (
-                  <p className="text-red-400 text-xs mt-1">{errors.name}</p>
+                  <p className="text-red-400 text-[11px] sm:text-xs mt-1">{errors.name}</p>
                 )}
               </div>
 
               <div>
                 <Label
                   htmlFor="shipping-phone"
-                  className="text-xs text-muted-foreground mb-1"
+                  className="text-[11px] sm:text-xs text-muted-foreground mb-1"
                 >
                   Phone Number
                 </Label>
@@ -587,14 +549,14 @@ ${city.trim()} - ${pincode.trim()}`
                   className={inputClass}
                 />
                 {errors.phone && (
-                  <p className="text-red-400 text-xs mt-1">{errors.phone}</p>
+                  <p className="text-red-400 text-[11px] sm:text-xs mt-1">{errors.phone}</p>
                 )}
               </div>
 
               <div>
                 <Label
                   htmlFor="shipping-address"
-                  className="text-xs text-muted-foreground mb-1"
+                  className="text-[11px] sm:text-xs text-muted-foreground mb-1"
                 >
                   Address
                 </Label>
@@ -609,15 +571,15 @@ ${city.trim()} - ${pincode.trim()}`
                   className={inputClass}
                 />
                 {errors.address && (
-                  <p className="text-red-400 text-xs mt-1">{errors.address}</p>
+                  <p className="text-red-400 text-[11px] sm:text-xs mt-1">{errors.address}</p>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
                 <div>
                   <Label
                     htmlFor="shipping-city"
-                    className="text-xs text-muted-foreground mb-1"
+                    className="text-[11px] sm:text-xs text-muted-foreground mb-1"
                   >
                     City
                   </Label>
@@ -632,13 +594,15 @@ ${city.trim()} - ${pincode.trim()}`
                     className={inputClass}
                   />
                   {errors.city && (
-                    <p className="text-red-400 text-xs mt-1">{errors.city}</p>
+                    <p className="text-red-400 text-[11px] sm:text-xs mt-1">
+                      {errors.city}
+                    </p>
                   )}
                 </div>
                 <div>
                   <Label
                     htmlFor="shipping-pincode"
-                    className="text-xs text-muted-foreground mb-1"
+                    className="text-[11px] sm:text-xs text-muted-foreground mb-1"
                   >
                     Pincode
                   </Label>
@@ -653,7 +617,7 @@ ${city.trim()} - ${pincode.trim()}`
                     className={inputClass}
                   />
                   {errors.pincode && (
-                    <p className="text-red-400 text-xs mt-1">
+                    <p className="text-red-400 text-[11px] sm:text-xs mt-1">
                       {errors.pincode}
                     </p>
                   )}
@@ -666,14 +630,14 @@ ${city.trim()} - ${pincode.trim()}`
 
           {/* ── Compact Order Summary ─────────────────────────────── */}
           <section>
-            <h3 className="text-sm font-semibold text-white mb-3">
+            <h3 className="text-xs sm:text-sm font-semibold text-white mb-2.5 sm:mb-3">
               Order Summary
             </h3>
             <div className="space-y-2">
               {cart.map((item) => (
                 <div
                   key={item.bookId}
-                  className="flex items-center justify-between text-sm"
+                  className="flex items-center justify-between text-xs sm:text-sm"
                 >
                   <span className="text-muted-foreground truncate max-w-[70%]">
                     {item.title} × {item.quantity}
@@ -684,20 +648,20 @@ ${city.trim()} - ${pincode.trim()}`
                 </div>
               ))}
               <Separator className="bg-white/[0.06] my-2" />
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between text-xs sm:text-sm">
                 <span className="text-muted-foreground">Subtotal</span>
                 <span className="text-white">
                   ₹{subtotal.toLocaleString('en-IN')}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between text-xs sm:text-sm">
                 <span className="text-muted-foreground">Delivery</span>
                 <span className="text-white">₹{delivery}</span>
               </div>
               <Separator className="bg-white/[0.06]" />
               <div className="flex items-center justify-between">
-                <span className="text-white font-semibold">Total</span>
-                <span className="text-amber font-bold text-lg">
+                <span className="text-white font-semibold text-sm sm:text-base">Total</span>
+                <span className="text-amber font-bold text-base sm:text-lg">
                   ₹{total.toLocaleString('en-IN')}
                 </span>
               </div>
@@ -708,14 +672,14 @@ ${city.trim()} - ${pincode.trim()}`
 
           {/* ── Payment Options ───────────────────────────────────── */}
           <section>
-            <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-              <CreditCard className="size-4 text-amber" />
+            <h3 className="text-xs sm:text-sm font-semibold text-white mb-2.5 sm:mb-3 flex items-center gap-1.5 sm:gap-2">
+              <CreditCard className="size-3.5 sm:size-4 text-amber" />
               Payment Method
             </h3>
-            <div className="space-y-2.5">
+            <div className="space-y-2 sm:space-y-2.5">
               {/* WhatsApp Pay */}
               <Button
-                className="w-full h-11 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm"
+                className="w-full h-10 sm:h-11 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm"
                 onClick={handleWhatsAppPay}
                 disabled={placing}
               >
@@ -726,7 +690,7 @@ ${city.trim()} - ${pincode.trim()}`
                   </span>
                 ) : (
                   <>
-                    <MessageCircle className="size-4" />
+                    <MessageCircle className="size-3.5 sm:size-4" />
                     Pay via WhatsApp
                   </>
                 )}
@@ -734,12 +698,12 @@ ${city.trim()} - ${pincode.trim()}`
 
               {/* PhonePe – coming soon */}
               <Button
-                className="w-full h-11 bg-white/[0.04] text-muted-foreground cursor-not-allowed relative overflow-hidden"
+                className="w-full h-10 sm:h-11 bg-white/[0.04] text-muted-foreground cursor-not-allowed relative overflow-hidden text-sm"
                 disabled
               >
-                <CreditCard className="size-4" />
+                <CreditCard className="size-3.5 sm:size-4" />
                 PhonePe
-                <Badge className="ml-auto bg-white/10 text-muted-foreground text-[10px] border-white/10">
+                <Badge className="ml-auto bg-white/10 text-muted-foreground text-[9px] sm:text-[10px] border-white/10">
                   Coming Soon
                 </Badge>
               </Button>
@@ -762,26 +726,26 @@ function ConfirmationView({
   onClose: () => void
 }) {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-6 text-center gap-4">
-      <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center">
-        <CheckCircle2 className="size-10 text-emerald-400" />
+    <div className="flex-1 flex flex-col items-center justify-center px-6 text-center gap-3 sm:gap-4">
+      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-emerald-500/10 flex items-center justify-center">
+        <CheckCircle2 className="size-8 sm:size-10 text-emerald-400" />
       </div>
-      <div className="space-y-2">
-        <h2 className="text-xl font-bold text-white">
+      <div className="space-y-1.5 sm:space-y-2">
+        <h2 className="text-lg sm:text-xl font-bold text-white">
           Order Placed Successfully!
         </h2>
         {orderNumber && (
-          <p className="text-amber font-mono text-sm font-medium">
+          <p className="text-amber font-mono text-xs sm:text-sm font-medium">
             {orderNumber}
           </p>
         )}
-        <p className="text-muted-foreground text-sm leading-relaxed max-w-xs mx-auto">
+        <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed max-w-xs mx-auto">
           Your order has been sent via WhatsApp for payment. You&apos;ll
           receive a confirmation once the payment is verified.
         </p>
       </div>
       <Button
-        className="mt-2 h-11 bg-amber hover:bg-amber-dark text-navy font-semibold text-sm px-8"
+        className="mt-2 h-10 sm:h-11 bg-amber hover:bg-amber-dark text-navy font-semibold text-sm px-6 sm:px-8"
         onClick={onClose}
       >
         Continue Shopping

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -27,6 +28,7 @@ const defaultSlide: HeroSlide = {
 }
 
 export function HeroCarousel({ slides }: HeroCarouselProps) {
+  const router = useRouter()
   const [current, setCurrent] = useState(0)
   const [direction, setDirection] = useState(0)
   const allSlides = slides.length > 0 ? slides : [defaultSlide]
@@ -45,10 +47,10 @@ export function HeroCarousel({ slides }: HeroCarouselProps) {
       } else if (link.startsWith('#')) {
         window.location.hash = link
       } else {
-        window.location.href = link
+        router.push(link)
       }
     },
-    [openSellBook, openRequestBook]
+    [router, openSellBook, openRequestBook]
   )
 
   const goTo = useCallback(

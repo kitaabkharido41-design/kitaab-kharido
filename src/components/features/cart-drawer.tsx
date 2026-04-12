@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import {
@@ -14,6 +14,8 @@ import {
   Truck,
   ArrowLeft,
   CheckCircle2,
+  Save,
+  MapPin,
 } from 'lucide-react'
 
 import { useStore, type CartItem } from '@/store'
@@ -33,6 +35,7 @@ import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 
 // ---------------------------------------------------------------------------
 // Sub-views inside the drawer
@@ -328,28 +331,17 @@ function CartItemsList({
 // Checkout View — uses API route instead of direct Supabase client
 // =====================================================================
 function CheckoutView({
-  cart,
-  subtotal,
-  delivery,
-  total,
-  onBack,
-  onSuccess,
-  onClose,
-  clearCart,
+  cart, subtotal, delivery, total, onBack, onSuccess, onClose, clearCart,
 }: {
-  cart: CartItem[]
-  subtotal: number
-  delivery: number
-  total: number
-  onBack: () => void
-  onSuccess: (orderNumber: string) => void
-  onClose: () => void
-  clearCart: () => void
+  cart: CartItem[]; subtotal: number; delivery: number; total: number
+  onBack: () => void; onSuccess: (orderNumber: string) => void
+  onClose: () => void; clearCart: () => void
 }) {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [placing, setPlacing] = useState(false)
+  const [saveAddress, setSaveAddress] = useState(false)
+  const [addressLoaded, setAddressLoaded] = useState(false)
 
-  // Shipping form state
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [address, setAddress] = useState('')
@@ -357,20 +349,32 @@ function CheckoutView({
   const [pincode, setPincode] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  const inputClass =
-    'h-8 sm:h-9 bg-white/[0.04] border-white/10 text-white placeholder:text-muted-foreground/50 text-sm focus-visible:border-amber/50 focus-visible:ring-amber/20'
+  const inputClass = 'h-8 sm:h-9 bg-white/[0.04] border-white/10 text-white placeholder:text-muted-foreground/50 text-sm focus-visible:border-amber/50 focus-visible:ring-amber/20'
+
+  const hasSavedAddress = !!(profile?.address && profile?.city && profile?.pincode)
+
+  // Prefill from saved profile
+  useEffect(() => {
+    if (user && profile && !addressLoaded) {
+      if (profile.full_name) setName(profile.full_name)
+      if (profile.phone) setPhone(profile.phone)
+      if (profile.address) setAddress(profile.address)
+      if (profile.city) setCity(profile.city)
+      if (profile.pincode) setPincode(profile.pincode)
+      if (profile.address) setSaveAddress(true)
+      setAddressLoaded(true)
+    }
+  }, [user, profile, addressLoaded])
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {}
     if (!name.trim()) errs.name = 'Name is required'
     if (!phone.trim()) errs.phone = 'Phone is required'
-    else if (!/^\d{10}$/.test(phone.replace(/\D/g, '')))
-      errs.phone = 'Enter a valid 10-digit phone'
+    else if (!/^\d{10}$/.test(phone.replace(/\D/g, ''))) errs.phone = 'Enter a valid 10-digit phone'
     if (!address.trim()) errs.address = 'Address is required'
     if (!city.trim()) errs.city = 'City is required'
     if (!pincode.trim()) errs.pincode = 'Pincode is required'
-    else if (!/^\d{6}$/.test(pincode.trim()))
-      errs.pincode = 'Enter a valid 6-digit pincode'
+    else if (!/^\d{6}$/.test(pincode.trim())) errs.pincode = 'Enter a valid 6-digit pincode'
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -379,87 +383,37 @@ function CheckoutView({
     if (!user || !validate()) return
     setPlacing(true)
 
-    try {
-      // Generate order number
-      const ordNum = `KK-${Date.now().toString(36).toUpperCase()}`
+    // Save address in background if toggle is on
+    if (saveAddress && name && phone && address && city && pincode) {
+      fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, full_name: name.trim(), phone: phone.trim(), address: address.trim(), city: city.trim(), pincode: pincode.trim() }),
+      }).catch(() => {})
+    }
 
-      // Call API route (uses admin client — bypasses RLS)
+    try {
+      const ordNum = `KK-${Date.now().toString(36).toUpperCase()}`
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: user.id,
-          order_number: ordNum,
-          total_amount: subtotal,
-          delivery_charge: delivery,
-          grand_total: total,
-          payment_method: 'whatsapp',
-          payment_status: 'pending',
-          order_status: 'pending',
-          shipping_name: name.trim(),
-          shipping_phone: phone.trim(),
-          shipping_address: address.trim(),
-          shipping_city: city.trim(),
-          shipping_pincode: pincode.trim(),
-          items: cart.map((item) => ({
-            book_id: item.bookId,
-            book_title: item.title,
-            book_author: item.author,
-            book_price: item.price,
-            book_original_price: item.originalPrice,
-            book_image_url: item.imageUrl,
-            quantity: item.quantity,
-          })),
+          user_id: user.id, order_number: ordNum, total_amount: subtotal, delivery_charge: delivery,
+          grand_total: total, payment_method: 'whatsapp', payment_status: 'pending', order_status: 'pending',
+          shipping_name: name.trim(), shipping_phone: phone.trim(), shipping_address: address.trim(),
+          shipping_city: city.trim(), shipping_pincode: pincode.trim(),
+          items: cart.map((item) => ({ book_id: item.bookId, book_title: item.title, book_author: item.author, book_price: item.price, book_original_price: item.originalPrice, book_image_url: item.imageUrl, quantity: item.quantity })),
         }),
       })
-
       const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to place order')
-      }
-
-      // Clear cart
+      if (!res.ok) throw new Error(data.error || 'Failed to place order')
       clearCart()
-
-      // Open WhatsApp with pre-filled message
-      const message = `📚 *New Order — KitaabKharido*
-
-*Order:* ${ordNum}
-*Date:* ${new Date().toLocaleDateString('en-IN')}
-
-*Items:*
-${cart.map((item) => `• ${item.title} × ${item.quantity} — ₹${(item.price * item.quantity).toLocaleString('en-IN')}`).join('\n')}
-
-*Subtotal:* ₹${subtotal.toLocaleString('en-IN')}
-*Delivery:* ₹${delivery}
-*Total:* ₹${total.toLocaleString('en-IN')}
-
-*Shipping:*
-${name.trim()}
-${phone.trim()}
-${address.trim()}
-${city.trim()} - ${pincode.trim()}`
-
-      window.open(
-        `https://wa.me/919382470919?text=${encodeURIComponent(message)}`,
-        '_blank'
-      )
-
-      // Show success toast
-      toast.success('Order placed successfully!', {
-        description: `Order ${ordNum} sent via WhatsApp for payment.`,
-        duration: 6000,
-      })
-
-      // Switch to confirmation view
+      const msg = `📚 *New Order — KitaabKharido*\n\n*Order:* ${ordNum}\n*Date:* ${new Date().toLocaleDateString('en-IN')}\n\n*Items:*\n${cart.map((item) => `• ${item.title} × ${item.quantity} — ₹${(item.price * item.quantity).toLocaleString('en-IN')}`).join('\n')}\n\n*Subtotal:* ₹${subtotal.toLocaleString('en-IN')}\n*Delivery:* ₹${delivery}\n*Total:* ₹${total.toLocaleString('en-IN')}\n\n*Shipping:*\n${name.trim()}\n${phone.trim()}\n${address.trim()}\n${city.trim()} - ${pincode.trim()}`
+      window.open(`https://wa.me/919382470919?text=${encodeURIComponent(msg)}`, '_blank')
+      toast.success('Order placed successfully!', { description: `Order ${ordNum} sent via WhatsApp for payment.`, duration: 6000 })
       onSuccess(ordNum)
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : 'Something went wrong'
-      toast.error('Failed to place order', {
-        description: message,
-        duration: 5000,
-      })
+      toast.error('Failed to place order', { description: err instanceof Error ? err.message : 'Something went wrong', duration: 5000 })
     } finally {
       setPlacing(false)
     }
@@ -467,242 +421,100 @@ ${city.trim()} - ${pincode.trim()}`
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
       <div className="px-4 sm:px-5 pt-4 sm:pt-5 pb-3 shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onBack}
-              className="text-muted-foreground hover:text-white hover:bg-white/5 -ml-1.5 size-8 sm:size-9"
-            >
-              <ArrowLeft className="size-4" />
-            </Button>
-            <SheetTitle className="text-base sm:text-lg font-semibold text-white">
-              Checkout
-            </SheetTitle>
+            <Button variant="ghost" size="icon" onClick={onBack} className="text-muted-foreground hover:text-white hover:bg-white/5 -ml-1.5 size-8 sm:size-9"><ArrowLeft className="size-4" /></Button>
+            <SheetTitle className="text-base sm:text-lg font-semibold text-white">Checkout</SheetTitle>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            className="text-muted-foreground hover:text-white hover:bg-white/5 -mr-1.5 size-8 sm:size-9"
-          >
-            <X className="size-4 sm:size-5" />
-          </Button>
+          <Button variant="ghost" size="icon" onClick={onClose} className="text-muted-foreground hover:text-white hover:bg-white/5 -mr-1.5 size-8 sm:size-9"><X className="size-4 sm:size-5" /></Button>
         </div>
       </div>
 
       <ScrollArea className="flex-1">
         <div className="px-4 sm:px-5 pb-6 space-y-4 sm:space-y-5">
-          {/* ── Shipping Details ──────────────────────────────────── */}
+          {/* Saved address quick-fill */}
+          {hasSavedAddress && (
+            <button
+              onClick={() => { if (profile) { setName(profile.full_name || ''); setPhone(profile.phone || ''); setAddress(profile.address || ''); setCity(profile.city || ''); setPincode(profile.pincode || ''); setSaveAddress(true); } }}
+              className="w-full flex items-center gap-2 p-3 rounded-lg bg-amber/10 border border-amber/20 text-amber hover:bg-amber/15 transition-colors"
+            >
+              <MapPin className="size-4 shrink-0" />
+              <span className="text-xs sm:text-sm font-medium truncate">Use saved: {profile.address}, {profile.city} - {profile.pincode}</span>
+            </button>
+          )}
+
           <section>
-            <div className="flex items-center justify-between mb-2.5 sm:mb-3">
-              <h3 className="text-xs sm:text-sm font-semibold text-white flex items-center gap-1.5 sm:gap-2">
-                <Truck className="size-3.5 sm:size-4 text-amber" />
-                Shipping Details
-              </h3>
-            </div>
-
+            <h3 className="text-xs sm:text-sm font-semibold text-white flex items-center gap-1.5 sm:gap-2 mb-2.5 sm:mb-3">
+              <Truck className="size-3.5 sm:size-4 text-amber" /> Shipping Details
+            </h3>
             <div className="space-y-2.5 sm:space-y-3">
-              <div>
-                <Label
-                  htmlFor="shipping-name"
-                  className="text-[11px] sm:text-xs text-muted-foreground mb-1"
-                >
-                  Full Name
-                </Label>
-                <Input
-                  id="shipping-name"
-                  value={name}
-                  onChange={(e) => {
-                    setName(e.target.value)
-                    setErrors((p) => ({ ...p, name: '' }))
-                  }}
-                  placeholder="Your full name"
-                  className={inputClass}
-                />
-                {errors.name && (
-                  <p className="text-red-400 text-[11px] sm:text-xs mt-1">{errors.name}</p>
-                )}
-              </div>
-
-              <div>
-                <Label
-                  htmlFor="shipping-phone"
-                  className="text-[11px] sm:text-xs text-muted-foreground mb-1"
-                >
-                  Phone Number
-                </Label>
-                <Input
-                  id="shipping-phone"
-                  value={phone}
-                  onChange={(e) => {
-                    setPhone(e.target.value)
-                    setErrors((p) => ({ ...p, phone: '' }))
-                  }}
-                  placeholder="10-digit phone number"
-                  className={inputClass}
-                />
-                {errors.phone && (
-                  <p className="text-red-400 text-[11px] sm:text-xs mt-1">{errors.phone}</p>
-                )}
-              </div>
-
-              <div>
-                <Label
-                  htmlFor="shipping-address"
-                  className="text-[11px] sm:text-xs text-muted-foreground mb-1"
-                >
-                  Address
-                </Label>
-                <Input
-                  id="shipping-address"
-                  value={address}
-                  onChange={(e) => {
-                    setAddress(e.target.value)
-                    setErrors((p) => ({ ...p, address: '' }))
-                  }}
-                  placeholder="Street address, house no."
-                  className={inputClass}
-                />
-                {errors.address && (
-                  <p className="text-red-400 text-[11px] sm:text-xs mt-1">{errors.address}</p>
-                )}
-              </div>
-
+              {[
+                { id: 'shipping-name', label: 'Full Name', value: name, set: setName, placeholder: 'Your full name', auto: 'name' },
+                { id: 'shipping-phone', label: 'Phone Number', value: phone, set: setPhone, placeholder: '10-digit phone number', auto: 'tel' },
+                { id: 'shipping-address', label: 'Address', value: address, set: setAddress, placeholder: 'Street address, house no.', auto: 'street-address' },
+              ].map((f) => (
+                <div key={f.id}>
+                  <Label htmlFor={f.id} className="text-[11px] sm:text-xs text-muted-foreground mb-1">{f.label}</Label>
+                  <Input id={f.id} value={f.value} onChange={(e) => { f.set(e.target.value); setErrors((p) => ({ ...p, [f.id.split('-')[1]]: '' })) }} placeholder={f.placeholder} className={inputClass} autoComplete={f.auto} />
+                  {errors[f.id.split('-')[1]] && <p className="text-red-400 text-[11px] sm:text-xs mt-1">{errors[f.id.split('-')[1]]}</p>}
+                </div>
+              ))}
               <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-                <div>
-                  <Label
-                    htmlFor="shipping-city"
-                    className="text-[11px] sm:text-xs text-muted-foreground mb-1"
-                  >
-                    City
-                  </Label>
-                  <Input
-                    id="shipping-city"
-                    value={city}
-                    onChange={(e) => {
-                      setCity(e.target.value)
-                      setErrors((p) => ({ ...p, city: '' }))
-                    }}
-                    placeholder="City"
-                    className={inputClass}
-                  />
-                  {errors.city && (
-                    <p className="text-red-400 text-[11px] sm:text-xs mt-1">
-                      {errors.city}
-                    </p>
-                  )}
+                {[
+                  { id: 'shipping-city', label: 'City', value: city, set: setCity, placeholder: 'City', auto: 'address-level2' },
+                  { id: 'shipping-pincode', label: 'Pincode', value: pincode, set: setPincode, placeholder: '6-digit pincode', auto: 'postal-code' },
+                ].map((f) => (
+                  <div key={f.id}>
+                    <Label htmlFor={f.id} className="text-[11px] sm:text-xs text-muted-foreground mb-1">{f.label}</Label>
+                    <Input id={f.id} value={f.value} onChange={(e) => { f.set(e.target.value); setErrors((p) => ({ ...p, [f.id.split('-')[1]]: '' })) }} placeholder={f.placeholder} className={inputClass} autoComplete={f.auto} />
+                    {errors[f.id.split('-')[1]] && <p className="text-red-400 text-[11px] sm:text-xs mt-1">{errors[f.id.split('-')[1]]}</p>}
+                  </div>
+                ))}
+              </div>
+
+              {/* Save Address Toggle */}
+              <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center gap-2">
+                  <Save className="size-3.5 text-amber/70" />
+                  <Label className="text-xs text-white/60 cursor-pointer select-none" htmlFor="save-addr">Save address for next time</Label>
                 </div>
-                <div>
-                  <Label
-                    htmlFor="shipping-pincode"
-                    className="text-[11px] sm:text-xs text-muted-foreground mb-1"
-                  >
-                    Pincode
-                  </Label>
-                  <Input
-                    id="shipping-pincode"
-                    value={pincode}
-                    onChange={(e) => {
-                      setPincode(e.target.value)
-                      setErrors((p) => ({ ...p, pincode: '' }))
-                    }}
-                    placeholder="6-digit pincode"
-                    className={inputClass}
-                  />
-                  {errors.pincode && (
-                    <p className="text-red-400 text-[11px] sm:text-xs mt-1">
-                      {errors.pincode}
-                    </p>
-                  )}
-                </div>
+                <Switch id="save-addr" checked={saveAddress} onCheckedChange={setSaveAddress} className="data-[state=checked]:bg-amber" />
               </div>
             </div>
           </section>
 
           <Separator className="bg-white/[0.06]" />
 
-          {/* ── Compact Order Summary ─────────────────────────────── */}
           <section>
-            <h3 className="text-xs sm:text-sm font-semibold text-white mb-2.5 sm:mb-3">
-              Order Summary
-            </h3>
+            <h3 className="text-xs sm:text-sm font-semibold text-white mb-2.5 sm:mb-3">Order Summary</h3>
             <div className="space-y-2">
               {cart.map((item) => (
-                <div
-                  key={item.bookId}
-                  className="flex items-center justify-between text-xs sm:text-sm"
-                >
-                  <span className="text-muted-foreground truncate max-w-[70%]">
-                    {item.title} × {item.quantity}
-                  </span>
-                  <span className="text-white shrink-0">
-                    ₹{(item.price * item.quantity).toLocaleString('en-IN')}
-                  </span>
+                <div key={item.bookId} className="flex items-center justify-between text-xs sm:text-sm">
+                  <span className="text-muted-foreground truncate max-w-[70%]">{item.title} × {item.quantity}</span>
+                  <span className="text-white shrink-0">₹{(item.price * item.quantity).toLocaleString('en-IN')}</span>
                 </div>
               ))}
               <Separator className="bg-white/[0.06] my-2" />
-              <div className="flex items-center justify-between text-xs sm:text-sm">
-                <span className="text-muted-foreground">Subtotal</span>
-                <span className="text-white">
-                  ₹{subtotal.toLocaleString('en-IN')}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-xs sm:text-sm">
-                <span className="text-muted-foreground">Delivery</span>
-                <span className="text-white">₹{delivery}</span>
-              </div>
+              <div className="flex items-center justify-between text-xs sm:text-sm"><span className="text-muted-foreground">Subtotal</span><span className="text-white">₹{subtotal.toLocaleString('en-IN')}</span></div>
+              <div className="flex items-center justify-between text-xs sm:text-sm"><span className="text-muted-foreground">Delivery</span><span className="text-white">₹{delivery}</span></div>
               <Separator className="bg-white/[0.06]" />
-              <div className="flex items-center justify-between">
-                <span className="text-white font-semibold text-sm sm:text-base">Total</span>
-                <span className="text-amber font-bold text-base sm:text-lg">
-                  ₹{total.toLocaleString('en-IN')}
-                </span>
-              </div>
+              <div className="flex items-center justify-between"><span className="text-white font-semibold text-sm sm:text-base">Total</span><span className="text-amber font-bold text-base sm:text-lg">₹{total.toLocaleString('en-IN')}</span></div>
             </div>
           </section>
 
           <Separator className="bg-white/[0.06]" />
 
-          {/* ── Payment Options ───────────────────────────────────── */}
           <section>
             <h3 className="text-xs sm:text-sm font-semibold text-white mb-2.5 sm:mb-3 flex items-center gap-1.5 sm:gap-2">
-              <CreditCard className="size-3.5 sm:size-4 text-amber" />
-              Payment Method
+              <CreditCard className="size-3.5 sm:size-4 text-amber" /> Payment Method
             </h3>
             <div className="space-y-2 sm:space-y-2.5">
-              {/* WhatsApp Pay */}
-              <Button
-                className="w-full h-10 sm:h-11 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm"
-                onClick={handleWhatsAppPay}
-                disabled={placing}
-              >
-                {placing ? (
-                  <span className="flex items-center gap-2">
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Placing Order...
-                  </span>
-                ) : (
-                  <>
-                    <MessageCircle className="size-3.5 sm:size-4" />
-                    Pay via WhatsApp
-                  </>
-                )}
+              <Button className="w-full h-10 sm:h-11 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm" onClick={handleWhatsAppPay} disabled={placing}>
+                {placing ? (<span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Placing Order...</span>) : (<><MessageCircle className="size-3.5 sm:size-4" />Pay via WhatsApp</>)}
               </Button>
-
-              {/* PhonePe – coming soon */}
-              <Button
-                className="w-full h-10 sm:h-11 bg-white/[0.04] text-muted-foreground cursor-not-allowed relative overflow-hidden text-sm"
-                disabled
-              >
-                <CreditCard className="size-3.5 sm:size-4" />
-                PhonePe
-                <Badge className="ml-auto bg-white/10 text-muted-foreground text-[9px] sm:text-[10px] border-white/10">
-                  Coming Soon
-                </Badge>
+              <Button className="w-full h-10 sm:h-11 bg-white/[0.04] text-muted-foreground cursor-not-allowed text-sm" disabled>
+                <CreditCard className="size-3.5 sm:size-4" />PhonePe<Badge className="ml-auto bg-white/10 text-muted-foreground text-[9px] sm:text-[10px] border-white/10">Coming Soon</Badge>
               </Button>
             </div>
           </section>

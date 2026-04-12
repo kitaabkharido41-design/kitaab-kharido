@@ -1,5 +1,7 @@
--- Kitaab Kharido: Ebook Requests Table
--- Run this in Supabase SQL Editor (https://supabase.com/dashboard → SQL Editor)
+-- ============================================
+-- KITAAB KHARIDO: Ebook Requests Table
+-- Run this in Supabase Dashboard → SQL Editor
+-- ============================================
 
 CREATE TABLE IF NOT EXISTS ebook_requests (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -19,24 +21,21 @@ CREATE TABLE IF NOT EXISTS ebook_requests (
 -- Enable Row Level Security
 ALTER TABLE ebook_requests ENABLE ROW LEVEL SECURITY;
 
--- Allow service role to do everything
-CREATE POLICY "Service role can do everything on ebook_requests"
-  ON ebook_requests
-  FOR ALL
-  TO service_role
-  USING (true)
-  WITH CHECK (true);
-
--- Allow anon to insert (for user requests)
+-- Allow anyone to insert ebook requests
 CREATE POLICY "Anyone can insert ebook requests"
-  ON ebook_requests
-  FOR INSERT
-  TO anon
-  WITH CHECK (true);
+ON ebook_requests
+FOR INSERT
+WITH CHECK (true);
 
--- Allow anon to read (optional, if you want public listing)
+-- Allow anyone to read ebook requests
 CREATE POLICY "Anyone can read ebook requests"
-  ON ebook_requests
-  FOR SELECT
-  TO anon
-  USING (true);
+ON ebook_requests
+FOR SELECT
+USING (true);
+
+-- Allow anyone to update ebook requests
+CREATE POLICY "Anyone can update ebook requests"
+ON ebook_requests
+FOR UPDATE
+USING (true)
+WITH CHECK (true);

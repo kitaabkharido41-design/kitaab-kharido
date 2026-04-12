@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import Link from 'next/link'
 import { motion } from 'framer-motion'
 import {
   Truck,
@@ -105,9 +106,9 @@ export function HomeContent({ books, settings }: HomeContentProps) {
             className="w-fit border-white/10 text-white/60 hover:border-amber/30 hover:text-amber"
             asChild
           >
-            <a href="/books">
+            <Link href="/books">
               View All <ChevronRight className="ml-1 h-4 w-4" />
-            </a>
+            </Link>
           </Button>
         </motion.div>
 

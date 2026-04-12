@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import {
@@ -240,12 +239,10 @@ function CartItemsList({
               {/* Thumbnail */}
               <div className="relative w-10 h-14 sm:w-12 sm:h-16 rounded-md overflow-hidden shrink-0 bg-white/[0.04] flex items-center justify-center">
                 {item.imageUrl ? (
-                  <Image
+                  <img
                     src={item.imageUrl}
                     alt={item.title}
-                    fill
-                    className="object-cover"
-                    sizes="48px"
+                    className="h-full w-full object-cover"
                   />
                 ) : (
                   <ShoppingBag className="size-4 sm:size-5 text-muted-foreground/50" />

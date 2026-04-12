@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useStore } from '@/store'
 import { useAuth } from '@/components/providers/auth-provider'
-import { createClient } from '@/lib/supabase/client'
 import type { Order, Book } from '@/lib/supabase/types'
 
 import {
@@ -167,15 +166,10 @@ function MyOrders({ userId }: { userId?: string }) {
       return
     }
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*, order_items(*)')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      setOrders(data || [])
+      const res = await fetch('/api/user/orders?userId=' + userId)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch orders')
+      setOrders(data.orders || [])
     } catch {
       toast.error('Failed to load orders')
     } finally {
@@ -377,14 +371,10 @@ function MyWishlist() {
       return
     }
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from('books')
-        .select('*')
-        .in('id', wishlist)
-
-      if (error) throw error
-      setBooks(data || [])
+      const res = await fetch('/api/user/wishlist-books?ids=' + wishlist.join(','))
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch wishlist')
+      setBooks(data.books || [])
     } catch {
       toast.error('Failed to load wishlist')
     } finally {
@@ -553,19 +543,23 @@ function MyProfile() {
     if (!user) return
     setSaving(true)
     try {
-      const supabase = createClient()
-      const { error } = await supabase
-        .from('profiles')
-        .update({
+      const res = await fetch('/api/user/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
           full_name: form.full_name,
           phone: form.phone,
           address: form.address,
           city: form.city,
           pincode: form.pincode,
-        })
-        .eq('id', user.id)
+        }),
+      })
 
-      if (error) throw error
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Failed to update profile')
+      }
       await refreshProfile()
       toast.success('Profile updated!')
     } catch {

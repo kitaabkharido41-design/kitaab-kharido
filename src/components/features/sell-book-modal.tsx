@@ -6,7 +6,6 @@ import { IndianRupee, Loader2, LogIn, Tag } from 'lucide-react'
 
 import { useStore } from '@/store'
 import { useAuth } from '@/components/providers/auth-provider'
-import { createClient } from '@/lib/supabase/client'
 
 import {
   Dialog,
@@ -33,7 +32,6 @@ const CONDITIONS = ['Like New', 'Good', 'Fair']
 export function SellBookModal() {
   const { ui, closeSellBook, openAuthModal } = useStore()
   const { user, profile } = useAuth()
-  const supabase = createClient()
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -83,25 +81,31 @@ export function SellBookModal() {
 
     setLoading(true)
     try {
-      const { error } = await supabase.from('sell_requests').insert({
-        user_id: user.id,
-        user_name: name,
-        user_email: email,
-        user_phone: phone,
-        book_title: bookTitle,
-        author: author || null,
-        category: category || null,
-        book_condition: condition || null,
-        asking_price: price ? Number(price) : null,
-        description: description || null,
+      const res = await fetch('/api/sell-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: user.id,
+          user_name: name,
+          user_email: email,
+          user_phone: phone,
+          book_title: bookTitle,
+          author: author || null,
+          category: category || null,
+          book_condition: condition || null,
+          asking_price: price ? Number(price) : null,
+          description: description || null,
+        }),
       })
 
-      if (!error) {
+      const data = await res.json()
+
+      if (res.ok && data.success) {
         toast.success("Sell request submitted! We'll review your book.")
         closeSellBook()
         resetForm()
       } else {
-        toast.error('Failed to submit request')
+        toast.error(data.error || 'Failed to submit request')
       }
     } catch {
       toast.error('Something went wrong. Please try again.')

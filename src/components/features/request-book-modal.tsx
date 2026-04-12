@@ -6,7 +6,6 @@ import { BookOpen, Loader2, LogIn } from 'lucide-react'
 
 import { useStore } from '@/store'
 import { useAuth } from '@/components/providers/auth-provider'
-import { createClient } from '@/lib/supabase/client'
 
 import {
   Dialog,
@@ -32,7 +31,6 @@ const CATEGORIES = ['Academic', 'Fiction', 'Self-Help', 'Others']
 export function RequestBookModal() {
   const { ui, closeRequestBook, openAuthModal } = useStore()
   const { user, profile } = useAuth()
-  const supabase = createClient()
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -78,23 +76,29 @@ export function RequestBookModal() {
 
     setLoading(true)
     try {
-      const { error } = await supabase.from('book_requests').insert({
-        user_id: user.id,
-        user_name: name,
-        user_email: email,
-        user_phone: phone,
-        book_title: bookTitle,
-        author: author || null,
-        category: category || null,
-        notes: notes || null,
+      const res = await fetch('/api/book-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: user.id,
+          user_name: name,
+          user_email: email,
+          user_phone: phone,
+          book_title: bookTitle,
+          author: author || null,
+          category: category || null,
+          notes: notes || null,
+        }),
       })
 
-      if (!error) {
+      const data = await res.json()
+
+      if (res.ok && data.success) {
         toast.success("Book request submitted! We'll find it for you.")
         closeRequestBook()
         resetForm()
       } else {
-        toast.error('Failed to submit request')
+        toast.error(data.error || 'Failed to submit request')
       }
     } catch {
       toast.error('Something went wrong. Please try again.')

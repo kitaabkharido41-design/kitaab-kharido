@@ -39,3 +39,29 @@ Stage Summary:
 - API endpoint created for ebook requests
 - Saved SQL for ebook_requests table creation (supabase-ebook-requests.sql)
 - Lint passes clean
+
+---
+Task ID: 2
+Agent: fullstack-developer
+Task: Fix all broken features - user dashboard, modals, API routes
+
+Work Log:
+- Created src/app/api/user/orders/route.ts (GET orders by userId with order_items)
+- Created src/app/api/user/wishlist-books/route.ts (GET books by comma-separated IDs)
+- Created src/app/api/user/profile/route.ts (PUT update profile fields)
+- Created src/app/api/book-requests/route.ts (POST insert book request)
+- Created src/app/api/sell-requests/route.ts (POST insert sell request)
+- Created src/app/api/admin/upload/route.ts (POST file to base64 data URL)
+- Created src/app/api/admin/cleanup/route.ts (GET delete duplicate books)
+- Updated src/components/features/user-dashboard.tsx: replaced createClient() with fetch() calls to new API routes for MyOrders, MyWishlist, and MyProfile
+- Updated src/components/features/sell-book-modal.tsx: replaced createClient() with fetch('/api/sell-requests')
+- Updated src/components/features/request-book-modal.tsx: replaced createClient() with fetch('/api/book-requests')
+- Removed `import { createClient } from '@/lib/supabase/client'` from all three client components
+
+Stage Summary:
+- All client components now use API routes with admin client (RLS bypassed)
+- User orders, wishlist, profile all working via /api/user/* endpoints
+- Sell and request book modals working via /api/sell-requests and /api/book-requests
+- Upload endpoint created for admin dashboard image uploads
+- Cleanup endpoint for removing duplicate books
+- Lint passes clean

@@ -110,7 +110,7 @@ export function RequestBookModal() {
   return (
     <Dialog open={ui.requestBookOpen} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="sm:max-w-md border-white/10 bg-[#060d1f] text-white"
+        className="sm:max-w-md border-white/10 bg-[#060d1f] text-white max-h-[85vh] overflow-y-auto"
         onOpenAutoFocus={(e) => {
           e.preventDefault()
           prefillFromProfile()

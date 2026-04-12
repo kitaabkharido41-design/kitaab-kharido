@@ -103,7 +103,7 @@ export function RequestEbookModal() {
   return (
     <Dialog open={ui.requestEbookOpen} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="sm:max-w-md border-white/10 bg-[#060d1f] text-white"
+        className="sm:max-w-md border-white/10 bg-[#060d1f] text-white max-h-[85vh] overflow-y-auto"
         onOpenAutoFocus={(e) => {
           e.preventDefault()
           prefillFromProfile()
@@ -112,7 +112,7 @@ export function RequestEbookModal() {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl text-amber-400">
             <Gift className="size-5" />
-            Request Free Ebook 🎁
+            Request Free Ebook
           </DialogTitle>
           <DialogDescription className="text-white/60">
             Request any ebook and get it for FREE as a gift! Available for all students.

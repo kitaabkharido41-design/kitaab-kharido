@@ -32,7 +32,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
-import { ScrollArea } from '@/components/ui/scroll-area'
+
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -93,7 +93,7 @@ export function CartDrawer() {
     >
       <SheetContent
         side="right"
-        className="w-full sm:max-w-md bg-[#0a1128] border-l border-white/[0.06] p-0 flex flex-col [&>button]:hidden"
+        className="w-full sm:max-w-md bg-[#0a1128] border-l border-white/[0.06] p-0 flex flex-col overflow-hidden [&>button]:hidden"
       >
         {/* ── Cart View ──────────────────────────────────────────────── */}
         {view === 'cart' && (
@@ -234,7 +234,7 @@ function CartItemsList({
   onUpdateQuantity: (bookId: string, qty: number) => void
 }) {
   return (
-    <ScrollArea className="flex-1">
+    <div className="flex-1 overflow-y-auto min-h-0 overscroll-contain">
       <div className="px-4 sm:px-5 pb-4">
         {items.map((item, idx) => (
           <div key={item.bookId}>
@@ -323,7 +323,7 @@ function CartItemsList({
           </div>
         ))}
       </div>
-    </ScrollArea>
+    </div>
   )
 }
 
@@ -431,7 +431,7 @@ function CheckoutView({
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
+      <div className="flex-1 overflow-y-auto min-h-0 overscroll-contain">
         <div className="px-4 sm:px-5 pb-6 space-y-4 sm:space-y-5">
           {/* Saved address quick-fill */}
           {hasSavedAddress && (
@@ -519,7 +519,7 @@ function CheckoutView({
             </div>
           </section>
         </div>
-      </ScrollArea>
+      </div>
     </div>
   )
 }

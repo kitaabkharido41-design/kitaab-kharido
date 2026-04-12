@@ -88,3 +88,21 @@ Stage Summary:
 - Zero lint errors, zero runtime errors
 - 40 books, 18 hero slides loading from Supabase
 - All admin CRUD operations functional
+
+---
+Task ID: 8
+Agent: Main Agent
+Task: Fix SQL syntax error, cart scroll, and modal scrolling issues
+
+Work Log:
+- Fixed cart drawer scrollability: Replaced ScrollArea with native div overflow-y-auto + min-h-0 + overscroll-contain for proper flex scrolling
+- Added overflow-hidden to SheetContent to constrain flex layout properly
+- Fixed request-ebook-modal: Added max-h-[85vh] overflow-y-auto to DialogContent for scrollable form
+- Fixed request-book-modal: Added max-h-[85vh] overflow-y-auto to DialogContent for scrollable form
+- Removed unused ScrollArea import from cart-drawer.tsx
+- Verified lint passes clean
+
+Stage Summary:
+- Cart drawer now properly scrolls when many items are added
+- Form modals now scroll properly on small screens
+- Save Address feature already exists in checkout view (toggle switch)

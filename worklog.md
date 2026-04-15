@@ -106,3 +106,25 @@ Stage Summary:
 - Cart drawer now properly scrolls when many items are added
 - Form modals now scroll properly on small screens
 - Save Address feature already exists in checkout view (toggle switch)
+
+---
+Task ID: 9
+Agent: Main Agent
+Task: Fix Google OAuth, remove broken/duplicate books, push to GitHub
+
+Work Log:
+- Analyzed screenshot: Error 400 redirect_uri_mismatch from Google OAuth
+- Created /src/app/auth/callback/route.ts for proper Supabase OAuth code exchange
+- Updated auth-modal.tsx: changed redirectTo from window.location.origin to window.location.origin/auth/callback (both login and signup)
+- Found all 40 books had either broken Amazon URLs (return 400) or placeholder images
+- Deactivated 24 duplicate books (kept 16 unique titles)
+- Fixed remaining books with broken Amazon URLs - replaced with working placehold.co images
+- Restored accidentally deleted upload route
+- Committed and pushed to GitHub
+
+Stage Summary:
+- Google OAuth: Added /auth/callback route and updated redirectTo
+- Books: 40 → 16 unique books, all with working images
+- User MUST update Google Cloud Console: add https://hqwmobnsxsefkcbsvzon.supabase.co/auth/v1/callback to Authorized redirect URIs
+- User MUST update Supabase Dashboard: add https://kitaab-kharido-omega.vercel.app/auth/callback to Redirect URLs
+- Code pushed to GitHub: commit 69ed2f1

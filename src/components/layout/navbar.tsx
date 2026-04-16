@@ -67,8 +67,8 @@ export function Navbar() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-2 shrink-0">
-              <BookOpen className="size-6 text-amber" />
+            <Link href="/" className="flex items-center gap-2.5 shrink-0">
+              <img src="/logo.jpg" alt="Kitaab Kharido" className="size-9 object-contain" />
               <span className="text-lg font-bold tracking-tight">
                 <span className="text-amber">Kitaab</span>
                 <span className="text-white">Kharido</span>
@@ -209,8 +209,8 @@ export function Navbar() {
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent side="right" className="w-80 bg-navy border-white/5 p-0">
           <SheetHeader className="p-6 pb-4">
-            <SheetTitle className="flex items-center gap-2">
-              <BookOpen className="size-5 text-amber" />
+            <SheetTitle className="flex items-center gap-2.5">
+              <img src="/logo.jpg" alt="Kitaab Kharido" className="size-7 object-contain" />
               <span className="text-amber">Kitaab</span>
               <span className="text-white">Kharido</span>
             </SheetTitle>

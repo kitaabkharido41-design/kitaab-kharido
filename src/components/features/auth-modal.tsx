@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
-import { Eye, EyeOff, Loader2, BookOpen } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -36,13 +36,13 @@ export function AuthModal() {
     <Dialog open={ui.authModalOpen} onOpenChange={(open) => !open && closeAuthModal()}>
       <DialogContent className="bg-navy-card border-white/10 sm:max-w-md backdrop-blur-xl">
         <DialogHeader className="text-center sm:text-center">
-          <DialogTitle className="flex items-center justify-center gap-2 text-xl">
-            <BookOpen className="size-5 text-amber" />
-            <span>
+          <div className="flex flex-col items-center gap-3">
+            <img src="/logo.jpg" alt="Kitaab Kharido" className="size-14 object-contain" />
+            <DialogTitle className="text-xl">
               <span className="text-amber">Kitaab</span>
               <span className="text-white">Kharido</span>
-            </span>
-          </DialogTitle>
+            </DialogTitle>
+          </div>
           <DialogDescription className="text-white/50">
             Access your account to manage orders and track deliveries
           </DialogDescription>

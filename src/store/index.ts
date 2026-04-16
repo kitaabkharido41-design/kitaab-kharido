@@ -146,7 +146,7 @@ export const useStore = create<StoreState>()(
         set({ ui: { ...get().ui, requestEbookOpen: false } }),
     }),
     {
-      name: 'kitaab-kharido-store',
+      name: 'kitaab-kharido-v2',
       partialize: (state) => ({
         cart: state.cart,
         wishlist: state.wishlist,

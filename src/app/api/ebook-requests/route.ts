@@ -1,6 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+// Helper: try to create table via Supabase REST (will fail gracefully if table exists)
+async function ensureTableExists(supabase: Awaited<ReturnType<typeof createAdminClient>>): Promise<boolean> {
+  try {
+    // Try a simple select to check if table exists
+    const { error } = await supabase.from('ebook_requests').select('id').limit(1)
+    if (!error) return true // Table exists
+    
+    // If table doesn't exist, return false - user must create it manually
+    if (error.code === 'PGRST205' || error.code === '42P01') {
+      return false
+    }
+    return true // Some other error, table might exist
+  } catch {
+    return false
+  }
+}
+
 // GET: Return all ebook requests (for admin)
 export async function GET() {
   try {
@@ -12,26 +29,27 @@ export async function GET() {
       .order('created_at', { ascending: false })
 
     if (error) {
-      // If the table doesn't exist, provide a helpful error
-      if (error.code === '42P01') {
+      if (error.code === 'PGRST205' || error.code === '42P01') {
         return NextResponse.json(
           {
-            error:
-              'The ebook_requests table does not exist. Please create it in Supabase SQL Editor with the following schema:\n\n' +
-              'CREATE TABLE ebook_requests (\n' +
-              '  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n' +
-              '  user_name TEXT,\n' +
-              '  user_email TEXT,\n' +
-              '  book_title TEXT NOT NULL,\n' +
-              '  author TEXT,\n' +
-              '  category TEXT,\n' +
-              '  notes TEXT,\n' +
-              '  status TEXT DEFAULT \'pending\',\n' +
-              '  admin_reply TEXT,\n' +
-              '  ebook_url TEXT,\n' +
-              '  created_at TIMESTAMPTZ DEFAULT now(),\n' +
-              '  updated_at TIMESTAMPTZ DEFAULT now()\n' +
+            error: 'TABLE_MISSING',
+            message: 'The ebook_requests table needs to be created. Go to Supabase SQL Editor and run the SQL below.',
+            sql: [
+              'CREATE TABLE IF NOT EXISTS ebook_requests (',
+              '  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,',
+              '  user_name TEXT,',
+              '  user_email TEXT,',
+              '  book_title TEXT NOT NULL,',
+              '  author TEXT,',
+              '  category TEXT,',
+              '  notes TEXT,',
+              '  status TEXT DEFAULT \'pending\',',
+              '  admin_reply TEXT,',
+              '  ebook_url TEXT,',
+              '  created_at TIMESTAMPTZ DEFAULT now(),',
+              '  updated_at TIMESTAMPTZ DEFAULT now()',
               ');',
+            ].join('\n'),
           },
           { status: 400 }
         )
@@ -66,6 +84,18 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createAdminClient()
 
+    // Check if table exists first
+    const tableExists = await ensureTableExists(supabase)
+    if (!tableExists) {
+      return NextResponse.json(
+        {
+          error: 'TABLE_MISSING',
+          message: 'Ebook requests feature is being set up. Please try again in a few minutes or contact support.',
+        },
+        { status: 503 }
+      )
+    }
+
     const { data, error } = await supabase
       .from('ebook_requests')
       .insert({
@@ -81,16 +111,6 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      // If the table doesn't exist, provide a helpful error
-      if (error.code === '42P01') {
-        return NextResponse.json(
-          {
-            error:
-              'The ebook_requests table does not exist yet. It needs to be created in Supabase. Please contact the administrator.',
-          },
-          { status: 400 }
-        )
-      }
       return NextResponse.json(
         { error: 'Failed to create ebook request', details: error.message },
         { status: 500 }

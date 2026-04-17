@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
         results.user = `Warning: ${error.message} — User may already exist or email conflict`
       } else if (data.user) {
         results.user = `Auth user created/exists: ${data.user.id}`
-        results.confirmed = data.user.confirmed_at ? 'Email confirmed' : 'Email NOT confirmed (check inbox or use SQL to confirm)'
+        results.confirmed = data.user.confirmed_at ? 'Email confirmed' : 'Email NOT confirmed'
       }
     } catch (e: unknown) {
       results.user = `Auth signup error: ${e instanceof Error ? e.message : String(e)}`
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     // 2. Get the user ID
     const ADMIN_UUID = '06585517-b6a2-438c-b26d-dbfb1a0cbba5'
 
-    // 3. Try to upsert the admin profile (using admin client — bypasses RLS)
+    // 3. Try to upsert the admin profile
     try {
       const { error: err1 } = await supabase
         .from('profiles')
@@ -64,89 +64,16 @@ export async function POST(request: NextRequest) {
       results.profile = `Profile error: ${e instanceof Error ? e.message : String(e)}`
     }
 
-    // 4. Insert demo books (using admin client)
-    const demoBooks = [
-      {
-        title: "Concepts of Physics Vol. 1",
-        author: "H.C. Verma",
-        category: "Academic",
-        sub_category: "JEE Physics",
-        price: 220,
-        original_price: 499,
-        discount_tag: "50% OFF",
-        condition: "Good",
-        stock_quantity: 5,
-        image_urls: ["https://m.media-amazon.com/images/I/71c+YFRqIxL._AC_UF1000,1000_QL80_.jpg"],
-        isbn: "978-8177091878",
-        publisher: "Bharati Bhawan",
-        edition: "2023",
-        language: "English",
-        description: "The most recommended book for JEE Physics preparation.",
-        active: true,
-        featured: true,
-      },
-      {
-        title: "Organic Chemistry",
-        author: "Morrison & Boyd",
-        category: "Academic",
-        sub_category: "JEE Chemistry",
-        price: 350,
-        original_price: 799,
-        discount_tag: "50% OFF",
-        condition: "Like New",
-        stock_quantity: 3,
-        image_urls: ["https://m.media-amazon.com/images/I/91G7T0DyT9L._AC_UF1000,1000_QL80_.jpg"],
-        isbn: "978-0136436690",
-        publisher: "Pearson",
-        edition: "7th",
-        language: "English",
-        description: "The gold standard for organic chemistry.",
-        active: true,
-        featured: true,
-      },
-      {
-        title: "Objective Mathematics",
-        author: "R.D. Sharma",
-        category: "Academic",
-        sub_category: "JEE Maths",
-        price: 280,
-        original_price: 650,
-        discount_tag: "50% OFF",
-        condition: "Good",
-        stock_quantity: 4,
-        image_urls: ["https://m.media-amazon.com/images/I/71+0KS2LhoL._AC_UF1000,1000_QL80_.jpg"],
-        isbn: "978-9383182334",
-        publisher: "Dhanpat Rai",
-        edition: "2024",
-        language: "English",
-        description: "Comprehensive mathematics book for JEE Mains & Advanced.",
-        active: true,
-        featured: true,
-      },
-    ]
-
+    // 4. Check if ebook_requests table exists
     try {
-      const { data: bookData, error: bookErr } = await supabase
-        .from('books')
-        .upsert(demoBooks, { onConflict: 'title,author' })
-        .select()
-
-      if (bookErr) {
-        const { data: insertData, error: insertErr } = await supabase
-          .from('books')
-          .insert(demoBooks)
-          .select()
-
-        if (insertErr) {
-          results.books = `Books error: ${insertErr.message}`
-        } else {
-          results.books = `Inserted ${insertData?.length || 0} demo books`
-        }
+      const { error: ebookErr } = await supabase.from('ebook_requests').select('id').limit(1)
+      if (ebookErr && (ebookErr.code === 'PGRST205' || ebookErr.code === '42P01')) {
+        results.ebook_requests = 'NOT CREATED — Run SQL in Supabase SQL Editor (see below)'
       } else {
-        results.books = `Upserted ${bookData?.length || 0} demo books`
+        results.ebook_requests = 'Table exists'
       }
-    } catch (e: unknown) {
-      results.books = `Books error: ${e instanceof Error ? e.message : String(e)}`
+    } catch {
+      results.ebook_requests = 'Could not check'
     }
 
     // 5. Insert default site settings
@@ -176,6 +103,21 @@ export async function POST(request: NextRequest) {
       success: true,
       message: 'Admin setup completed',
       results,
+      sql_needed: results.ebook_requests?.includes('NOT CREATED') ? true : false,
+      sql: results.ebook_requests?.includes('NOT CREATED') ? `CREATE TABLE IF NOT EXISTS ebook_requests (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_name TEXT,
+  user_email TEXT,
+  book_title TEXT NOT NULL,
+  author TEXT,
+  category TEXT,
+  notes TEXT,
+  status TEXT DEFAULT 'pending',
+  admin_reply TEXT,
+  ebook_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);` : null,
     })
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 })

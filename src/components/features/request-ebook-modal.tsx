@@ -87,9 +87,11 @@ export function RequestEbookModal() {
       const data = await res.json()
 
       if (res.ok) {
-        toast.success('🎉 Ebook request submitted! We\'ll send it to you for free.')
+        toast.success('Ebook request submitted! We will send it to you for free.')
         closeRequestEbook()
         resetForm()
+      } else if (data.error === 'TABLE_MISSING') {
+        toast.error('Ebook requests are being set up. Please try again in a few minutes.', { duration: 5000 })
       } else {
         toast.error(data.error || 'Failed to submit request')
       }
@@ -233,7 +235,7 @@ export function RequestEbookModal() {
               </>
             ) : (
               <>
-                🎁 Submit Request
+                Submit Request
               </>
             )}
           </Button>

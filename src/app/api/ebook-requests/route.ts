@@ -1,100 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-// Helper: try to insert into ebook_requests, fall back to book_requests if table missing
-async function insertEbookRequest(
-  supabase: Awaited<ReturnType<typeof createAdminClient>>,
-  data: {
-    user_name: string | null
-    user_email: string
-    book_title: string
-    author: string | null
-    category: string | null
-    notes: string | null
-  }
-): Promise<{ success: boolean; data?: any; error?: string; usedFallback?: boolean }> {
-  // Try ebook_requests table first
-  const { data: inserted, error } = await supabase
-    .from('ebook_requests')
-    .insert({
-      user_name: data.user_name,
-      user_email: data.user_email,
-      book_title: data.book_title,
-      author: data.author,
-      category: data.category,
-      notes: data.notes,
-      status: 'pending',
-    })
-    .select()
-    .single()
-
-  if (!error) {
-    return { success: true, data: inserted, usedFallback: false }
-  }
-
-  // If table doesn't exist, fall back to book_requests table
-  if (error.code === 'PGRST205' || error.code === '42P01' || error.message?.includes('does not exist')) {
-    console.log('[ebook-requests] ebook_requests table not found, falling back to book_requests')
-
-    const { data: fallbackData, error: fallbackError } = await supabase
-      .from('book_requests')
-      .insert({
-        user_id: null,
-        user_name: data.user_name,
-        user_email: data.user_email,
-        user_phone: null,
-        book_title: data.book_title,
-        author: data.author,
-        category: data.category ? `Ebook - ${data.category}` : 'Ebook',
-        notes: data.notes ? `[EBOOK REQUEST] ${data.notes}` : '[EBOOK REQUEST]',
-      })
-      .select()
-      .single()
-
-    if (fallbackError) {
-      console.error('[ebook-requests] Fallback insert also failed:', fallbackError)
-      return { success: false, error: fallbackError.message }
-    }
-
-    return { success: true, data: fallbackData, usedFallback: true }
-  }
-
-  // Some other error
-  console.error('[ebook-requests] Insert error:', error)
-  return { success: false, error: error.message }
-}
-
-// GET: Return all ebook requests (for admin)
-export async function GET() {
-  try {
-    const supabase = await createAdminClient()
-
-    const { data, error } = await supabase
-      .from('ebook_requests')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      if (error.code === 'PGRST205' || error.code === '42P01') {
-        // Table doesn't exist yet - return empty list instead of error
-        return NextResponse.json({ data: [] })
-      }
-      return NextResponse.json(
-        { error: 'Failed to fetch ebook requests', details: error.message },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({ data })
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
-      { status: 500 }
-    )
-  }
-}
-
-// POST: Create a new ebook request (for users)
+/**
+ * POST /api/ebook-requests
+ * Create a new ebook request.
+ * Uses admin client (service role key) to bypass RLS.
+ * Falls back to book_requests table if ebook_requests doesn't exist.
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -126,35 +38,122 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createAdminClient()
 
-    // Try inserting directly - the helper handles table-missing fallback
-    const result = await insertEbookRequest(supabase, {
-      user_name: user_name?.trim() || null,
-      user_email: user_email.trim(),
-      book_title: book_title.trim(),
-      author: author?.trim() || null,
-      category: category?.trim() || null,
-      notes: notes?.trim() || null,
-    })
+    // Try inserting into ebook_requests table first
+    const { data: inserted, error } = await supabase
+      .from('ebook_requests')
+      .insert({
+        user_name: user_name?.trim() || null,
+        user_email: user_email.trim(),
+        book_title: book_title.trim(),
+        author: author?.trim() || null,
+        category: category?.trim() || null,
+        notes: notes?.trim() || null,
+        status: 'pending',
+      })
+      .select()
+      .single()
 
-    if (!result.success) {
+    if (!error) {
       return NextResponse.json(
-        { error: 'Failed to submit ebook request. Please try again or contact us on WhatsApp at +91 93824 70919.', details: result.error },
-        { status: 500 }
+        { data: inserted, message: 'Ebook request submitted successfully! We will send it to you for free.' },
+        { status: 201 }
       )
     }
 
-    if (result.usedFallback) {
-      console.log('[ebook-requests] Request stored in book_requests as fallback. Run ebook_requests SQL to create the dedicated table.')
+    // If ebook_requests table doesn't exist, fall back to book_requests
+    const isTableMissing =
+      error.code === '42P01' ||
+      error.message?.includes('does not exist') ||
+      error.message?.includes('relation') ||
+      error.message?.includes('not found')
+
+    if (isTableMissing) {
+      console.log('[ebook-requests] ebook_requests table not found, falling back to book_requests')
+
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('book_requests')
+        .insert({
+          user_id: null,
+          user_name: user_name?.trim() || null,
+          user_email: user_email.trim(),
+          user_phone: null,
+          book_title: book_title.trim(),
+          author: author?.trim() || null,
+          category: category ? `Ebook - ${category}` : 'Ebook',
+          notes: notes ? `[EBOOK REQUEST] ${notes}` : '[EBOOK REQUEST]',
+        })
+        .select()
+        .single()
+
+      if (fallbackError) {
+        console.error('[ebook-requests] Fallback to book_requests also failed:', fallbackError)
+        return NextResponse.json(
+          {
+            error: 'Failed to submit request. Please run the ebook_requests SQL table first, or WhatsApp us at +91 93824 70919.',
+            details: fallbackError.message
+          },
+          { status: 500 }
+        )
+      }
+
+      return NextResponse.json(
+        { data: fallbackData, message: 'Ebook request submitted successfully! We will send it to you for free.' },
+        { status: 201 }
+      )
     }
 
+    // Some other error from ebook_requests insert
+    console.error('[ebook-requests] Insert error:', error)
     return NextResponse.json(
-      { data: result.data, message: 'Ebook request submitted successfully! We will send it to you for free.' },
-      { status: 201 }
+      {
+        error: 'Failed to submit ebook request. Please WhatsApp us at +91 93824 70919 for help.',
+        details: error.message
+      },
+      { status: 500 }
     )
   } catch (err: any) {
     console.error('[ebook-requests] Unexpected error:', err)
     return NextResponse.json(
       { error: 'Internal server error. Please WhatsApp us at +91 93824 70919 for help.', details: err.message },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * GET /api/ebook-requests
+ * Return all ebook requests (for admin dashboard).
+ */
+export async function GET() {
+  try {
+    const supabase = await createAdminClient()
+
+    const { data, error } = await supabase
+      .from('ebook_requests')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      // If table doesn't exist, return empty list
+      const isTableMissing =
+        error.code === '42P01' ||
+        error.message?.includes('does not exist') ||
+        error.message?.includes('relation')
+
+      if (isTableMissing) {
+        return NextResponse.json({ data: [] })
+      }
+
+      return NextResponse.json(
+        { error: 'Failed to fetch ebook requests', details: error.message },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ data })
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: 'Internal server error', details: err.message },
       { status: 500 }
     )
   }

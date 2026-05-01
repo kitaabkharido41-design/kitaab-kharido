@@ -113,7 +113,7 @@ export function Footer() {
               </li>
               <li>
                 <span className="leading-relaxed">
-                  Delhi, India
+                  West Bengal, India
                 </span>
               </li>
             </ul>

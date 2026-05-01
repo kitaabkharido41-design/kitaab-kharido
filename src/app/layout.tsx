@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     "sell old books",
   ],
   icons: {
-    icon: "/favicon.jpg",
+    icon: "/favicon.png",
   },
 };
 

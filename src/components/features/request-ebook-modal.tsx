@@ -26,7 +26,7 @@ import {
   SelectItem,
 } from '@/components/ui/select'
 
-const EBOOK_CATEGORIES = ['JEE', 'NEET', 'UPSC', 'CAT', 'GATE', 'Other']
+const EBOOK_CATEGORIES = ['Academic', 'JEE', 'NEET', 'UPSC', 'CAT', 'GATE', 'Other']
 
 export function RequestEbookModal() {
   const { ui, closeRequestEbook } = useStore()
@@ -90,12 +90,10 @@ export function RequestEbookModal() {
         toast.success('Ebook request submitted! We will send it to you for free.')
         closeRequestEbook()
         resetForm()
-      } else if (data.error === 'TABLE_MISSING') {
-        toast.error('Ebook requests are being set up. Please WhatsApp us at +91 93824 70919 for help.', { duration: 7000 })
       } else if (res.status === 409) {
         toast.error(data.error || 'Duplicate request', { duration: 5000 })
       } else {
-        toast.error(data.error || 'Failed to submit request')
+        toast.error(data.error || 'Failed to submit request. Please WhatsApp us at +91 93824 70919.')
       }
     } catch {
       toast.error('Something went wrong. Please WhatsApp us at +91 93824 70919 or try again.')

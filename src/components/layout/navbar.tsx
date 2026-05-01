@@ -68,7 +68,7 @@ export function Navbar() {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <Link href="/" className="flex items-center gap-2.5 shrink-0">
-              <img src="/logo.jpg" alt="Kitaab Kharido" className="size-9 object-contain" />
+              <img src="/logo.png" alt="Kitaab Kharido" className="size-9 object-contain rounded-full" />
               <span className="text-lg font-bold tracking-tight">
                 <span className="text-amber">Kitaab</span>
                 <span className="text-white">Kharido</span>
@@ -210,7 +210,7 @@ export function Navbar() {
         <SheetContent side="right" className="w-80 bg-navy border-white/5 p-0">
           <SheetHeader className="p-6 pb-4">
             <SheetTitle className="flex items-center gap-2.5">
-              <img src="/logo.jpg" alt="Kitaab Kharido" className="size-7 object-contain" />
+              <img src="/logo.png" alt="Kitaab Kharido" className="size-7 object-contain rounded-full" />
               <span className="text-amber">Kitaab</span>
               <span className="text-white">Kharido</span>
             </SheetTitle>

@@ -22,7 +22,7 @@ export function Footer() {
           {/* Brand */}
           <div className="sm:col-span-2 lg:col-span-1">
             <Link href="/" className="inline-flex items-center gap-2 mb-4">
-              <BookOpen className="size-6 text-amber" />
+              <img src="/logo.png" alt="Kitaab Kharido" className="size-8 object-contain rounded-full" />
               <span className="text-lg font-bold tracking-tight">
                 <span className="text-amber">Kitaab</span>
                 <span className="text-white">Kharido</span>

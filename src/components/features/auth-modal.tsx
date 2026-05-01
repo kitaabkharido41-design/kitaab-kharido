@@ -37,7 +37,7 @@ export function AuthModal() {
       <DialogContent className="bg-navy-card border-white/10 sm:max-w-md backdrop-blur-xl">
         <DialogHeader className="text-center sm:text-center">
           <div className="flex flex-col items-center gap-3">
-            <img src="/logo.jpg" alt="Kitaab Kharido" className="size-14 object-contain" />
+            <img src="/logo.png" alt="Kitaab Kharido" className="size-14 object-contain rounded-full" />
             <DialogTitle className="text-xl">
               <span className="text-amber">Kitaab</span>
               <span className="text-white">Kharido</span>

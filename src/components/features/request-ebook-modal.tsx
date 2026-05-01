@@ -91,12 +91,14 @@ export function RequestEbookModal() {
         closeRequestEbook()
         resetForm()
       } else if (data.error === 'TABLE_MISSING') {
-        toast.error('Ebook requests are being set up. Please try again in a few minutes.', { duration: 5000 })
+        toast.error('Ebook requests are being set up. Please WhatsApp us at +91 93824 70919 for help.', { duration: 7000 })
+      } else if (res.status === 409) {
+        toast.error(data.error || 'Duplicate request', { duration: 5000 })
       } else {
         toast.error(data.error || 'Failed to submit request')
       }
     } catch {
-      toast.error('Something went wrong. Please try again.')
+      toast.error('Something went wrong. Please WhatsApp us at +91 93824 70919 or try again.')
     } finally {
       setLoading(false)
     }

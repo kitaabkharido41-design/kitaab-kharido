@@ -3,13 +3,14 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type {
-  Book, HeroSlide, Order, OrderItem, BookRequest, SellRequest, SiteSetting
+  Book, HeroSlide, Order, OrderItem, BookRequest, SellRequest, EbookRequest, SiteSetting
 } from '@/lib/supabase/types'
 import {
   LayoutDashboard, BookOpen, ShoppingBag, ImageIcon, BookOpenText,
   IndianRupee, Settings, ArrowLeft, Menu, Plus, Pencil, Trash2,
   Loader2, Package, DollarSign, Clock, BookX, RefreshCw, Search, LogOut,
-  Upload, X, AlertTriangle, ShieldCheck, ShieldX, Copy, Check, Inbox, ImageOff
+  Upload, X, AlertTriangle, ShieldCheck, ShieldX, Copy, Check, Inbox, ImageOff,
+  Gift
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -37,7 +38,7 @@ import { toast } from 'sonner'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-type TabId = 'dashboard' | 'books' | 'orders' | 'slides' | 'book-requests' | 'sell-requests' | 'settings'
+type TabId = 'dashboard' | 'books' | 'orders' | 'slides' | 'book-requests' | 'sell-requests' | 'ebook-requests' | 'settings'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -48,6 +49,7 @@ const NAV_ITEMS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'slides', label: 'Hero Slides', icon: <ImageIcon className="size-4" /> },
   { id: 'book-requests', label: 'Book Requests', icon: <BookOpenText className="size-4" /> },
   { id: 'sell-requests', label: 'Sell Requests', icon: <IndianRupee className="size-4" /> },
+  { id: 'ebook-requests', label: 'Ebook Requests', icon: <Gift className="size-4" /> },
   { id: 'settings', label: 'Site Settings', icon: <Settings className="size-4" /> },
 ]
 
@@ -85,6 +87,7 @@ const ORDER_STATUSES = ['pending', 'confirmed', 'packed', 'shipped', 'out_for_de
 const PAYMENT_STATUSES = ['pending', 'paid', 'failed', 'refunded']
 const BOOK_REQUEST_STATUSES = ['pending', 'found', 'not_available', 'fulfilled']
 const SELL_REQUEST_STATUSES = ['pending', 'reviewed', 'accepted', 'rejected']
+const EBOOK_REQUEST_STATUSES = ['pending', 'sent', 'not_available', 'fulfilled']
 
 const MAX_IMAGES = 3
 
@@ -207,6 +210,7 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
   const [slides, setSlides] = useState<HeroSlide[]>([])
   const [bookRequests, setBookRequests] = useState<BookRequest[]>([])
   const [sellRequests, setSellRequests] = useState<SellRequest[]>([])
+  const [ebookRequests, setEbookRequests] = useState<EbookRequest[]>([])
   const [settings, setSettings] = useState<Record<string, string>>({})
 
   // RLS Status
@@ -260,6 +264,7 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
       setSlides(data.slides || [])
       setBookRequests(data.bookRequests || [])
       setSellRequests(data.sellRequests || [])
+      setEbookRequests(data.ebookRequests || [])
 
       if (data.settings && Array.isArray(data.settings)) {
         const map: Record<string, string> = {}
@@ -297,6 +302,7 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
   const pendingOrders = orders.filter(o => o.order_status === 'pending').length
   const pendingBookRequests = bookRequests.filter(r => r.status === 'pending').length
   const pendingSellRequests = sellRequests.filter(r => r.status === 'pending').length
+  const pendingEbookRequests = ebookRequests.filter(r => r.status === 'pending').length
 
   const filteredBooks = useMemo(() => {
     let result = books
@@ -615,6 +621,32 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
     }
   }
 
+  const saveEbookRequest = async (req: EbookRequest) => {
+    const edit = requestEdits[req.id] || { status: req.status, reply: req.admin_reply || '', offer_price: '' }
+    setRequestSaving(prev => ({ ...prev, [req.id]: true }))
+    try {
+      const res = await fetch('/api/admin/requests', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'ebook_requests', id: req.id,
+          status: edit.status,
+          admin_reply: edit.reply.trim() || null,
+          ebook_url: edit.offer_price.trim() || null,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to update')
+
+      toast.success('Ebook request updated')
+      await fetchAll()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update')
+    } finally {
+      setRequestSaving(prev => ({ ...prev, [req.id]: false }))
+    }
+  }
+
   // ── Settings ────────────────────────────────────────────────────────
   const updateSetting = async (key: string, value: string) => {
     setSettings(prev => ({ ...prev, [key]: value }))
@@ -637,6 +669,7 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
       {NAV_ITEMS.map(item => {
         const badge = item.id === 'book-requests' ? pendingBookRequests
           : item.id === 'sell-requests' ? pendingSellRequests
+          : item.id === 'ebook-requests' ? pendingEbookRequests
           : item.id === 'orders' ? pendingOrders : 0
         return (
           <button
@@ -847,7 +880,7 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
               </div>
 
               {/* Pending Requests Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div
                   className="bg-[#0f1730] border border-white/5 rounded-xl p-4 flex items-center gap-4 cursor-pointer hover:border-amber/20 transition-colors"
                   onClick={() => setActiveTab('book-requests')}
@@ -866,6 +899,16 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
                   <div>
                     <p className="text-xl font-bold text-white">{pendingSellRequests}</p>
                     <p className="text-sm text-white/40">Pending Sell Requests</p>
+                  </div>
+                </div>
+                <div
+                  className="bg-[#0f1730] border border-white/5 rounded-xl p-4 flex items-center gap-4 cursor-pointer hover:border-amber/20 transition-colors"
+                  onClick={() => setActiveTab('ebook-requests')}
+                >
+                  <div className="p-3 rounded-lg bg-green-500/10 text-green-400"><Gift className="size-5" /></div>
+                  <div>
+                    <p className="text-xl font-bold text-white">{pendingEbookRequests}</p>
+                    <p className="text-sm text-white/40">Pending Ebook Requests</p>
                   </div>
                 </div>
               </div>
@@ -1271,6 +1314,95 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
                                   className="bg-amber hover:bg-amber/90 text-black text-xs h-8"
                                   disabled={requestSaving[req.id]}
                                   onClick={() => saveSellRequest(req)}
+                                >
+                                  {requestSaving[req.id] ? <Loader2 className="size-3 animate-spin" /> : 'Save'}
+                                </Button>
+                              </td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════════
+              TAB: EBOOK REQUESTS
+              ═══════════════════════════════════════════════════════════ */}
+          {activeTab === 'ebook-requests' && (
+            <div className="space-y-4">
+              <p className="text-sm text-white/40">{ebookRequests.length} ebook requests</p>
+              <div className="bg-[#0f1730] border border-white/5 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto max-h-[calc(100vh-220px)] overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-[#0f1730] z-10">
+                      <tr className="border-b border-white/5 text-left">
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Book</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden md:table-cell">User</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Status</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Ebook URL</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Reply</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ebookRequests.length === 0 ? (
+                        <tr><td colSpan={6} className="px-4 py-8 text-center text-white/30">No ebook requests</td></tr>
+                      ) : (
+                        ebookRequests.map(req => {
+                          const edit = requestEdits[req.id] || {
+                            status: req.status,
+                            reply: req.admin_reply || '',
+                            offer_price: req.ebook_url || '',
+                          }
+                          return (
+                            <tr key={req.id} className="border-b border-white/5 hover:bg-white/5 transition-colors align-top">
+                              <td className="px-4 py-3">
+                                <p className="text-white font-medium">{req.book_title}</p>
+                                {req.author && <p className="text-xs text-white/40">{req.author}</p>}
+                                {req.category && <p className="text-xs text-white/30">{req.category}</p>}
+                                {req.notes && <p className="text-xs text-white/30 mt-1 max-w-[200px] truncate">{req.notes}</p>}
+                              </td>
+                              <td className="px-4 py-3 hidden md:table-cell">
+                                <p className="text-white/70">{req.user_name || 'Anonymous'}</p>
+                                {req.user_email && <p className="text-xs text-white/40">{req.user_email}</p>}
+                              </td>
+                              <td className="px-4 py-3">
+                                <Select
+                                  value={edit.status}
+                                  onValueChange={v => setRequestEdits(prev => ({ ...prev, [req.id]: { ...edit, status: v } }))}
+                                >
+                                  <SelectTrigger className={`${IC} w-32 text-xs h-8`}><SelectValue /></SelectTrigger>
+                                  <SelectContent className="bg-[#0f1730] border-white/10">
+                                    {EBOOK_REQUEST_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                              <td className="px-4 py-3">
+                                <Input
+                                  className={`${IC} text-xs h-8 w-48`}
+                                  placeholder="Ebook download URL..."
+                                  value={edit.offer_price}
+                                  onChange={e => setRequestEdits(prev => ({ ...prev, [req.id]: { ...edit, offer_price: e.target.value } }))}
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <Input
+                                  className={`${IC} text-xs h-8`}
+                                  placeholder="Reply..."
+                                  value={edit.reply}
+                                  onChange={e => setRequestEdits(prev => ({ ...prev, [req.id]: { ...edit, reply: e.target.value } }))}
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <Button
+                                  size="sm"
+                                  className="bg-amber hover:bg-amber/90 text-black text-xs h-8"
+                                  disabled={requestSaving[req.id]}
+                                  onClick={() => saveEbookRequest(req)}
                                 >
                                   {requestSaving[req.id] ? <Loader2 className="size-3 animate-spin" /> : 'Save'}
                                 </Button>

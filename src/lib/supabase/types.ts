@@ -136,6 +136,21 @@ export type SellRequest = {
   updated_at: string
 }
 
+export type EbookRequest = {
+  id: string
+  user_name: string | null
+  user_email: string | null
+  book_title: string
+  author: string | null
+  category: string | null
+  notes: string | null
+  status: string
+  admin_reply: string | null
+  ebook_url: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type SiteSetting = {
   id: string
   key: string

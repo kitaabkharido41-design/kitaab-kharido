@@ -26,7 +26,7 @@ import {
   SelectItem,
 } from '@/components/ui/select'
 
-const CATEGORIES = ['Academic', 'Fiction', 'Self-Help', 'Others']
+const CATEGORIES = ['Academic', 'JEE', 'NEET', 'UPSC', 'CAT', 'GATE', 'Fiction', 'Self-Help', 'Others']
 
 export function RequestBookModal() {
   const { ui, closeRequestBook, openAuthModal } = useStore()

@@ -34,6 +34,8 @@ import {
   UserCircle,
   LogOut,
   Loader2,
+  HelpCircle,
+  MessageCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
@@ -133,6 +135,13 @@ export function UserDashboard() {
                 <User className="size-3.5 mr-1" />
                 Profile
               </TabsTrigger>
+              <TabsTrigger
+                value="support"
+                className="flex-1 text-xs data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-400 text-white/60"
+              >
+                <HelpCircle className="size-3.5 mr-1" />
+                Support
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -146,6 +155,9 @@ export function UserDashboard() {
             </TabsContent>
             <TabsContent value="profile" className="mt-0 pb-6">
               <MyProfile />
+            </TabsContent>
+            <TabsContent value="support" className="mt-0 pb-6">
+              <HelpSupport />
             </TabsContent>
           </div>
         </Tabs>
@@ -755,6 +767,110 @@ function MyProfile() {
           )}
           Sign Out
         </Button>
+      </div>
+    </div>
+  )
+}
+
+// ── Help & Support Tab ──────────────────────────────────────────────
+function HelpSupport() {
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center flex-shrink-0">
+          <HelpCircle className="size-6 text-green-400" />
+        </div>
+        <div>
+          <p className="font-semibold text-white">Help & Support</p>
+          <p className="text-xs text-white/40">We&apos;re here to help you</p>
+        </div>
+      </div>
+
+      <Separator className="bg-white/10" />
+
+      {/* WhatsApp Support */}
+      <div className="rounded-xl border border-green-500/20 bg-green-500/5 p-4 space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+            <MessageCircle className="size-5 text-green-400" />
+          </div>
+          <div>
+            <p className="font-medium text-white">WhatsApp Support</p>
+            <p className="text-xs text-white/40">Chat with us instantly</p>
+          </div>
+        </div>
+        <p className="text-sm text-white/60 leading-relaxed">
+          Get quick help via WhatsApp. We typically respond within a few minutes during business hours. You can ask about orders, book availability, returns, or any other queries.
+        </p>
+        <a
+          href="https://wa.me/919382470919"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white font-medium text-sm px-4 py-2.5 rounded-lg transition-colors"
+        >
+          <MessageCircle className="size-4" />
+          Chat on WhatsApp
+        </a>
+        <div className="flex items-center gap-2 text-sm text-white/50">
+          <Phone className="size-3.5" />
+          <span>+91 93824 70919</span>
+        </div>
+      </div>
+
+      {/* Email Support */}
+      <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+            <Mail className="size-5 text-amber-400" />
+          </div>
+          <div>
+            <p className="font-medium text-white">Email Support</p>
+            <p className="text-xs text-white/40">For detailed queries</p>
+          </div>
+        </div>
+        <p className="text-sm text-white/60 leading-relaxed">
+          Send us an email for detailed queries, order issues, or feedback. We aim to respond within 24 hours. Include your order number if applicable for faster resolution.
+        </p>
+        <a
+          href="mailto:kitaabkharido41@gmail.com"
+          className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-black font-medium text-sm px-4 py-2.5 rounded-lg transition-colors"
+        >
+          <Mail className="size-4" />
+          Send Email
+        </a>
+        <div className="flex items-center gap-2 text-sm text-white/50">
+          <Mail className="size-3.5" />
+          <span>kitaabkharido41@gmail.com</span>
+        </div>
+      </div>
+
+      {/* FAQ */}
+      <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-4">
+        <p className="text-xs font-semibold uppercase tracking-wider text-amber-400/80">
+          Frequently Asked Questions
+        </p>
+        <div className="space-y-3">
+          <div>
+            <p className="text-sm font-medium text-white/80">How do I track my order?</p>
+            <p className="text-xs text-white/40 mt-0.5">Go to the Orders tab to see your order status and tracking information.</p>
+          </div>
+          <Separator className="bg-white/5" />
+          <div>
+            <p className="text-sm font-medium text-white/80">Can I return a book?</p>
+            <p className="text-xs text-white/40 mt-0.5">Contact us on WhatsApp or email for return requests. We handle returns on a case-by-case basis.</p>
+          </div>
+          <Separator className="bg-white/5" />
+          <div>
+            <p className="text-sm font-medium text-white/80">How do I request a book?</p>
+            <p className="text-xs text-white/40 mt-0.5">Use the &quot;Request a Book&quot; feature on the homepage to let us know which book you need.</p>
+          </div>
+          <Separator className="bg-white/5" />
+          <div>
+            <p className="text-sm font-medium text-white/80">How do I request a free ebook?</p>
+            <p className="text-xs text-white/40 mt-0.5">Use the &quot;Request Free Ebook&quot; feature to request any ebook and get it for free!</p>
+          </div>
+        </div>
       </div>
     </div>
   )

@@ -6,6 +6,7 @@ import {
   Instagram,
   Twitter,
   Phone,
+  Mail,
   Heart,
 } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
@@ -21,7 +22,7 @@ export function Footer() {
           {/* Brand */}
           <div className="sm:col-span-2 lg:col-span-1">
             <Link href="/" className="inline-flex items-center gap-2 mb-4">
-              <BookOpen className="size-6 text-amber" />
+              <img src="/logo.png" alt="Kitaab Kharido" className="size-8 object-contain rounded-full" />
               <span className="text-lg font-bold tracking-tight">
                 <span className="text-amber">Kitaab</span>
                 <span className="text-white">Kharido</span>
@@ -35,7 +36,15 @@ export function Footer() {
             <div className="flex items-center gap-3">
               <SocialButton icon={<Instagram className="size-4" />} label="Instagram" />
               <SocialButton icon={<Twitter className="size-4" />} label="Twitter" />
-              <SocialButton icon={<Phone className="size-4" />} label="WhatsApp" />
+              <a
+                href="https://wa.me/919382470919"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="WhatsApp"
+                className="flex items-center justify-center size-9 rounded-lg bg-white/5 text-white/40 hover:text-green-400 hover:bg-green-400/10 transition-colors"
+              >
+                <Phone className="size-4" />
+              </a>
             </div>
           </div>
 
@@ -84,14 +93,27 @@ export function Footer() {
             <ul className="space-y-3 text-sm text-white/40">
               <li className="flex items-start gap-2">
                 <Phone className="size-4 mt-0.5 shrink-0 text-white/30" />
-                <span>+91 98765 43210</span>
+                <a
+                  href="https://wa.me/919382470919"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-green-400 transition-colors"
+                >
+                  +91 93824 70919
+                </a>
               </li>
-              <li>
-                <span>support@kitaabkharido.com</span>
+              <li className="flex items-start gap-2">
+                <Mail className="size-4 mt-0.5 shrink-0 text-white/30" />
+                <a
+                  href="mailto:kitaabkharido41@gmail.com"
+                  className="hover:text-amber transition-colors"
+                >
+                  kitaabkharido41@gmail.com
+                </a>
               </li>
               <li>
                 <span className="leading-relaxed">
-                  Delhi, India
+                  West Bengal, India
                 </span>
               </li>
             </ul>

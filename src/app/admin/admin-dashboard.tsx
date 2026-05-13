@@ -10,7 +10,7 @@ import {
   IndianRupee, Settings, ArrowLeft, Menu, Plus, Pencil, Trash2,
   Loader2, Package, DollarSign, Clock, BookX, RefreshCw, Search, LogOut,
   Upload, X, AlertTriangle, ShieldCheck, ShieldX, Copy, Check, Inbox, ImageOff,
-  Gift
+  Gift, Bot
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -691,6 +691,20 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
           </button>
         )
       })}
+      
+      <div className="mt-2 pt-2 border-t border-white/5">
+        <a
+          href="/admin/growth-team"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-indigo-400/90 hover:bg-indigo-500/10 hover:text-indigo-300"
+          onClick={() => onClick?.()}
+        >
+          <Bot className="size-4" />
+          AI Growth Team
+          <Badge variant="secondary" className="ml-auto bg-indigo-500/20 text-indigo-300 text-[10px] px-1.5">
+            NEW
+          </Badge>
+        </a>
+      </div>
     </nav>
   )
 

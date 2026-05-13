@@ -1,6 +1,6 @@
 'use client'
 
-import { useChat } from 'ai/react'
+import { useChat } from '@ai-sdk/react'
 import { useRef, useEffect } from 'react'
 import { AgentPersona, AGENTS } from '@/lib/ai/agents'
 import { Send, Loader2 } from 'lucide-react'
@@ -77,7 +77,7 @@ export function AgentChat({ agentId }: { agentId: AgentPersona }) {
             />
             <Button 
               type="submit" 
-              disabled={isLoading || !input.trim()} 
+              disabled={isLoading || !(input || '').trim()} 
               size="icon"
               className="absolute right-2 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl h-11 w-11 disabled:opacity-50 transition-all shadow-md"
             >

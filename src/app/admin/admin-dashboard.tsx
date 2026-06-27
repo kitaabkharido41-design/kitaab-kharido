@@ -96,6 +96,7 @@ const EMPTY_BOOK_FORM = {
   price: 0, original_price: 0, discount_tag: 'None', condition: 'Like New',
   stock_quantity: 1, image_urls: [] as string[], isbn: '', publisher: '', edition: '',
   language: 'English', description: '', active: true, featured: false,
+  seller_name: '', seller_email: '', seller_phone: '',
 }
 
 const EMPTY_SLIDE_FORM = {
@@ -382,6 +383,9 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
         publisher: book.publisher || '', edition: book.edition || '',
         language: book.language || 'English', description: book.description || '',
         active: book.active, featured: book.featured,
+        seller_name: book.seller_name || '',
+        seller_email: book.seller_email || '',
+        seller_phone: book.seller_phone || '',
       })
     } else {
       setEditingBook(null)
@@ -408,6 +412,9 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
         edition: bookForm.edition.trim() || null, language: bookForm.language.trim() || 'English',
         description: bookForm.description.trim() || null,
         active: bookForm.active, featured: bookForm.featured,
+        seller_name: bookForm.seller_name.trim() || null,
+        seller_email: bookForm.seller_email.trim() || null,
+        seller_phone: bookForm.seller_phone.trim() || null,
       }
 
       const res = editingBook
@@ -621,7 +628,55 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
     }
   }
 
-  const saveEbookRequest = async (req: EbookRequest) => {
+  const approveAndListSellRequest = async (req: SellRequest) => {
+    setRequestSaving(prev => ({ ...prev, [req.id]: true }))
+    try {
+      const res = await fetch('/api/admin/requests', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'sell_requests',
+          id: req.id,
+          status: 'accepted',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to update request')
+      toast.success('Sell request approved!')
+      await fetchAll()
+      
+      setEditingBook(null)
+      setBookForm({
+        title: req.book_title,
+        author: req.author || '',
+        category: req.category || 'Academic',
+        sub_category: '',
+        price: req.offer_price || req.asking_price || 0,
+        original_price: req.asking_price ? req.asking_price * 2 : 0,
+        discount_tag: '50% OFF',
+        condition: req.book_condition || 'Good',
+        stock_quantity: 1,
+        image_urls: [] as string[],
+        isbn: '',
+        publisher: '',
+        edition: '',
+        language: 'English',
+        description: req.description || '',
+        active: true,
+        featured: false,
+        seller_name: req.user_name || '',
+        seller_email: req.user_email || '',
+        seller_phone: req.user_phone || '',
+      })
+      setBookDialogOpen(true)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to approve request')
+    } finally {
+      setRequestSaving(prev => ({ ...prev, [req.id]: false }))
+    }
+  }
+
+  const saveEbookRequest = async (req: EbookRequest) =>>,StartLine:614,TargetContent: {
     const edit = requestEdits[req.id] || { status: req.status, reply: req.admin_reply || '', offer_price: '' }
     setRequestSaving(prev => ({ ...prev, [req.id]: true }))
     try {
@@ -1018,6 +1073,7 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
                         <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden xl:table-cell">Condition</th>
                         <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden lg:table-cell">Stock</th>
                         <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden xl:table-cell">Active</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden md:table-cell">Seller</th>
                         <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Actions</th>
                       </tr>
                     </thead>
@@ -1047,6 +1103,17 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
                             <td className="px-4 py-3 text-white/50 hidden lg:table-cell">{book.stock_quantity}</td>
                             <td className="px-4 py-3 hidden xl:table-cell">
                               <span className={`inline-block w-2 h-2 rounded-full ${book.active ? 'bg-green-400' : 'bg-red-400'}`} />
+                            </td>
+                            <td className="px-4 py-3 hidden md:table-cell">
+                              {book.seller_name ? (
+                                <div>
+                                  <p className="text-white/80 font-medium text-xs">{book.seller_name}</p>
+                                  {book.seller_email && <p className="text-[10px] text-white/40">{book.seller_email}</p>}
+                                  {book.seller_phone && <p className="text-[10px] text-white/30">{book.seller_phone}</p>}
+                                </div>
+                              ) : (
+                                <span className="text-white/20 text-xs">Store</span>
+                              )}
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-1">
@@ -1323,14 +1390,27 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
                                 />
                               </td>
                               <td className="px-4 py-3">
-                                <Button
-                                  size="sm"
-                                  className="bg-amber hover:bg-amber/90 text-black text-xs h-8"
-                                  disabled={requestSaving[req.id]}
-                                  onClick={() => saveSellRequest(req)}
-                                >
-                                  {requestSaving[req.id] ? <Loader2 className="size-3 animate-spin" /> : 'Save'}
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    className="bg-amber hover:bg-amber/90 text-black text-xs h-8"
+                                    disabled={requestSaving[req.id]}
+                                    onClick={() => saveSellRequest(req)}
+                                  >
+                                    {requestSaving[req.id] ? <Loader2 className="size-3 animate-spin" /> : 'Save'}
+                                  </Button>
+                                  {req.status !== 'accepted' && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="border-green-500/30 text-green-400 hover:bg-green-500/10 text-xs h-8"
+                                      disabled={requestSaving[req.id]}
+                                      onClick={() => approveAndListSellRequest(req)}
+                                    >
+                                      Approve & List
+                                    </Button>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           )
@@ -1565,6 +1645,23 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
               <div className="space-y-2">
                 <Label className={LC}>Edition</Label>
                 <Input className={IC} value={bookForm.edition} onChange={e => setBookForm(p => ({ ...p, edition: e.target.value }))} placeholder="Edition" />
+              </div>
+            </div>
+
+            <Separator className="bg-white/5" />
+            <p className="text-xs uppercase tracking-wider text-amber/60 font-semibold">Seller Information (Optional)</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label className={LC}>Seller Name</Label>
+                <Input className={IC} value={bookForm.seller_name} onChange={e => setBookForm(p => ({ ...p, seller_name: e.target.value }))} placeholder="Seller name" />
+              </div>
+              <div className="space-y-2">
+                <Label className={LC}>Seller Email</Label>
+                <Input className={IC} type="email" value={bookForm.seller_email} onChange={e => setBookForm(p => ({ ...p, seller_email: e.target.value }))} placeholder="seller@email.com" />
+              </div>
+              <div className="space-y-2">
+                <Label className={LC}>Seller Phone</Label>
+                <Input className={IC} type="tel" value={bookForm.seller_phone} onChange={e => setBookForm(p => ({ ...p, seller_phone: e.target.value }))} placeholder="Phone number" />
               </div>
             </div>
 

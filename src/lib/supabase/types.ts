@@ -30,6 +30,9 @@ export type Book = {
   description: string | null
   active: boolean
   featured: boolean
+  seller_name?: string | null
+  seller_email?: string | null
+  seller_phone?: string | null
   created_at: string
   updated_at: string
 }

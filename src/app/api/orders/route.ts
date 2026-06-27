@@ -96,6 +96,48 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', user_id)
 
+    // 4. Send email notifications (best-effort)
+    try {
+      const { data: userData } = await supabase.auth.admin.getUserById(user_id)
+      const buyerEmail = userData?.user?.email
+
+      if (buyerEmail) {
+        const emailItems = items.map((item: any) => ({
+          title: item.book_title,
+          price: Number(item.book_price),
+          quantity: Number(item.quantity)
+        }))
+
+        const { sendOrderConfirmationEmail, sendAdminOrderAlertEmail } = await import('@/lib/email/client')
+        
+        // Send buyer confirmation email
+        await sendOrderConfirmationEmail(
+          buyerEmail,
+          shipping_name,
+          order_number,
+          Number(grand_total),
+          emailItems
+        )
+
+        // Send admin alert email
+        await sendAdminOrderAlertEmail(
+          order_number,
+          shipping_name,
+          Number(grand_total),
+          emailItems,
+          {
+            phone: shipping_phone,
+            address: shipping_address,
+            city: shipping_city,
+            pincode: shipping_pincode,
+            method: payment_method || 'whatsapp'
+          }
+        )
+      }
+    } catch (emailErr) {
+      console.error('Failed to send order email alerts:', emailErr)
+    }
+
     return NextResponse.json({
       success: true,
       order: { id: order.id, order_number: order.order_number },

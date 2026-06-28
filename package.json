@@ -84,7 +84,8 @@
     "z-ai-web-dev-sdk": "^0.0.17",
     "zod": "^4.0.2",
     "zustand": "^5.0.6",
-    "resend": "^3.2.0"
+    "resend": "^3.2.0",
+    "@react-email/components": "0.0.19"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

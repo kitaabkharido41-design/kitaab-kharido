@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { toast } from 'sonner'
-import { IndianRupee, Loader2, LogIn, Tag } from 'lucide-react'
+import { IndianRupee, Loader2, LogIn, Tag, Upload, X } from 'lucide-react'
 
 import { useStore } from '@/store'
 import { useAuth } from '@/components/providers/auth-provider'
@@ -42,7 +42,9 @@ export function SellBookModal() {
   const [condition, setCondition] = useState('')
   const [price, setPrice] = useState('')
   const [description, setDescription] = useState('')
+  const [imageUrls, setImageUrls] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const resetForm = () => {
     setName('')
@@ -54,6 +56,7 @@ export function SellBookModal() {
     setCondition('')
     setPrice('')
     setDescription('')
+    setImageUrls([])
   }
 
   const handleOpenChange = (open: boolean) => {
@@ -79,7 +82,13 @@ export function SellBookModal() {
 
     if (!user) return
 
+    if (imageUrls.length === 0) {
+      toast.error('Please upload at least one image of the book (cover page)')
+      return
+    }
+
     setLoading(true)
+
     try {
       const res = await fetch('/api/sell-requests', {
         method: 'POST',
@@ -95,6 +104,7 @@ export function SellBookModal() {
           book_condition: condition || null,
           asking_price: price ? Number(price) : null,
           description: description || null,
+          image_urls: imageUrls,
         }),
       })
 
@@ -309,6 +319,84 @@ export function SellBookModal() {
                   rows={3}
                   className="border-white/10 bg-white/5 text-white placeholder:text-white/30 focus-visible:border-amber-500/50 focus-visible:ring-amber-500/20 resize-none"
                 />
+              </div>
+
+              {/* Image Upload */}
+              <div className="space-y-2 pt-2">
+                <Label className="text-white/80 text-sm">
+                  Book Cover / Images <span className="text-amber-400">*</span> <span className="text-white/40">(At least 1 image is mandatory)</span>
+                </Label>
+                <div className="space-y-3">
+                  {imageUrls.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {imageUrls.map((url, idx) => (
+                        <div key={idx} className="relative group w-20 h-20 rounded-lg overflow-hidden border border-white/10 hover:border-red-400/40 transition-colors">
+                          <img src={url} alt={`Book preview ${idx + 1}`} className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => setImageUrls(prev => prev.filter((_, i) => i !== idx))}
+                            className="absolute top-1 right-1 bg-red-500/90 hover:bg-red-500 rounded-full p-0.5 shadow-lg transition-all"
+                            title="Remove image"
+                          >
+                            <X className="size-3 text-white" />
+                          </button>
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent py-0.5 px-1 text-[10px] text-white/90 text-center font-medium">
+                            {idx === 0 ? 'Cover Page' : `#${idx + 1}`}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {imageUrls.length < 3 && (
+                    <div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => {
+                          const files = e.target.files
+                          if (!files) return
+                          const remaining = 3 - imageUrls.length
+                          const filesToProcess = Array.from(files).slice(0, remaining)
+                          filesToProcess.forEach(file => {
+                            if (!file.type.startsWith('image/')) {
+                              toast.error(`${file.name} is not an image`)
+                              return
+                            }
+                            if (file.size > 2 * 1024 * 1024) {
+                              toast.error(`${file.name} is too large (max 2MB)`)
+                              return
+                            }
+                            const reader = new FileReader()
+                            reader.onload = (ev) => {
+                              const base64 = ev.target?.result as string
+                              if (base64) {
+                                setImageUrls(prev => [...prev, base64])
+                              }
+                            }
+                            reader.readAsDataURL(file)
+                          })
+                          if (fileInputRef.current) fileInputRef.current.value = ''
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center gap-2 px-4 py-3 rounded-lg border border-dashed border-white/20 text-white/40 hover:text-white/60 hover:border-white/30 transition-colors w-full justify-center"
+                      >
+                        <Upload className="size-4" />
+                        <span className="text-sm">
+                          {imageUrls.length === 0
+                            ? 'Click to upload Cover Page (JPG, PNG)'
+                            : 'Add more images (max 3)'}
+                        </span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

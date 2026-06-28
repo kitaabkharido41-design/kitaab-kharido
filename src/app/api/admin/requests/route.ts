@@ -24,46 +24,56 @@ export async function PUT(request: NextRequest) {
         .eq('id', id)
         .single()
 
-      if (sellRequest && sellRequest.status !== 'accepted') {
-        const listPrice = Number(payload.offer_price || sellRequest.asking_price || 0)
-        const askPrice = Number(sellRequest.asking_price || 0)
+      if (sellRequest) {
+        // Check if this book has already been listed in the books table to avoid duplicates
+        const { data: existingBooks } = await supabase
+          .from('books')
+          .select('id')
+          .eq('title', sellRequest.book_title)
+          .eq('seller_email', sellRequest.user_email)
+          .limit(1)
 
-        const bookPayload = {
-          title: sellRequest.book_title,
-          author: sellRequest.author || 'Unknown',
-          category: sellRequest.category || 'Academic',
-          sub_category: null,
-          price: listPrice,
-          original_price: askPrice > 0 ? askPrice * 2 : listPrice * 2,
-          discount_tag: '50% OFF',
-          condition: sellRequest.book_condition || 'Good',
-          stock_quantity: 1,
-          image_urls: sellRequest.image_urls || [],
-          description: sellRequest.description || `Originally listed from sell request.`,
-          active: true,
-          featured: false,
-          seller_name: sellRequest.user_name,
-          seller_email: sellRequest.user_email,
-          seller_phone: sellRequest.user_phone,
-        }
+        if (!existingBooks || existingBooks.length === 0) {
+          const listPrice = Number(payload.offer_price || sellRequest.asking_price || 0)
+          const askPrice = Number(sellRequest.asking_price || 0)
 
-        const { error: bookInsertErr } = await supabase.from('books').insert(bookPayload)
-        if (bookInsertErr) {
-          console.error('Failed to auto-insert book listing:', bookInsertErr.message)
-        }
+          const bookPayload = {
+            title: sellRequest.book_title,
+            author: sellRequest.author || 'Unknown',
+            category: sellRequest.category || 'Academic',
+            sub_category: null,
+            price: listPrice,
+            original_price: askPrice > 0 ? askPrice * 2 : listPrice * 2,
+            discount_tag: '50% OFF',
+            condition: sellRequest.book_condition || 'Good',
+            stock_quantity: 1,
+            image_urls: sellRequest.image_urls || [],
+            description: sellRequest.description || `Originally listed from sell request.`,
+            active: true,
+            featured: false,
+            seller_name: sellRequest.user_name,
+            seller_email: sellRequest.user_email,
+            seller_phone: sellRequest.user_phone,
+          }
 
-        // Notify the seller
-        try {
-          const { sendSellerAcceptanceEmail } = await import('@/lib/email/client')
-          await sendSellerAcceptanceEmail(
-            sellRequest.user_email,
-            sellRequest.user_name,
-            sellRequest.book_title,
-            askPrice,
-            listPrice
-          )
-        } catch (emailErr) {
-          console.error('Failed to send seller acceptance email:', emailErr)
+          const { error: bookInsertErr } = await supabase.from('books').insert(bookPayload)
+          if (bookInsertErr) {
+            console.error('Failed to auto-insert book listing:', bookInsertErr.message)
+          }
+
+          // Notify the seller
+          try {
+            const { sendSellerAcceptanceEmail } = await import('@/lib/email/client')
+            await sendSellerAcceptanceEmail(
+              sellRequest.user_email,
+              sellRequest.user_name,
+              sellRequest.book_title,
+              askPrice,
+              listPrice
+            )
+          } catch (emailErr) {
+            console.error('Failed to send seller acceptance email:', emailErr)
+          }
         }
       }
     }

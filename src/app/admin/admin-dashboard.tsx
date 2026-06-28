@@ -1310,7 +1310,7 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
                         <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap hidden md:table-cell">Seller</th>
                         <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Asking</th>
                         <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Status</th>
-                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Offer</th>
+                        <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">List Price</th>
                         <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Reply</th>
                         <th className="px-4 py-3 text-white/40 font-medium whitespace-nowrap">Action</th>
                       </tr>
@@ -1400,17 +1400,15 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
                                   >
                                     {requestSaving[req.id] ? <Loader2 className="size-3 animate-spin" /> : 'Save'}
                                   </Button>
-                                  {req.status !== 'accepted' && (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="border-green-500/30 text-green-400 hover:bg-green-500/10 text-xs h-8"
-                                      disabled={requestSaving[req.id]}
-                                      onClick={() => approveAndListSellRequest(req)}
-                                    >
-                                      Approve & List
-                                    </Button>
-                                  )}
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="border-green-500/30 text-green-400 hover:bg-green-500/10 text-xs h-8"
+                                    disabled={requestSaving[req.id]}
+                                    onClick={() => approveAndListSellRequest(req)}
+                                  >
+                                    Approve & List
+                                  </Button>
                                 </div>
                               </td>
                             </tr>

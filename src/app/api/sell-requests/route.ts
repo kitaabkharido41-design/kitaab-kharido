@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
       book_condition,
       asking_price,
       description,
+      image_urls,
     } = body
 
     if (!book_title || !book_title.trim()) {
@@ -41,11 +42,31 @@ export async function POST(request: NextRequest) {
       book_condition: book_condition || null,
       asking_price: asking_price ? Number(asking_price) : null,
       description: description || null,
+      image_urls: image_urls || [],
     })
 
     if (error) {
       console.error('Failed to insert sell request:', error.message)
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // Trigger Admin Email Alert
+    try {
+      const { sendAdminSellRequestAlertEmail } = await import('@/lib/email/client')
+      await sendAdminSellRequestAlertEmail({
+        user_name: user_name || 'Anonymous',
+        user_email: user_email || 'No email provided',
+        user_phone,
+        book_title,
+        author,
+        category,
+        book_condition,
+        asking_price: asking_price ? Number(asking_price) : null,
+        description,
+        image_urls
+      })
+    } catch (emailErr) {
+      console.error('Failed to send admin sell request alert email:', emailErr)
     }
 
     return NextResponse.json({ success: true })

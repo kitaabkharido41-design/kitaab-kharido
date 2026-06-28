@@ -629,6 +629,7 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
   }
 
   const approveAndListSellRequest = async (req: SellRequest) => {
+    const edit = requestEdits[req.id] || { status: req.status, reply: req.admin_reply || '', offer_price: String(req.offer_price || '') }
     setRequestSaving(prev => ({ ...prev, [req.id]: true }))
     try {
       const res = await fetch('/api/admin/requests', {
@@ -638,44 +639,22 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
           type: 'sell_requests',
           id: req.id,
           status: 'accepted',
+          offer_price: edit.offer_price.trim() ? Number(edit.offer_price) : null,
+          admin_reply: edit.reply.trim() || null,
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to update request')
-      toast.success('Sell request approved!')
-      await fetchAll()
       
-      setEditingBook(null)
-      setBookForm({
-        title: req.book_title,
-        author: req.author || '',
-        category: req.category || 'Academic',
-        sub_category: '',
-        price: req.offer_price || req.asking_price || 0,
-        original_price: req.asking_price ? req.asking_price * 2 : 0,
-        discount_tag: '50% OFF',
-        condition: req.book_condition || 'Good',
-        stock_quantity: 1,
-        image_urls: [] as string[],
-        isbn: '',
-        publisher: '',
-        edition: '',
-        language: 'English',
-        description: req.description || '',
-        active: true,
-        featured: false,
-        seller_name: req.user_name || '',
-        seller_email: req.user_email || '',
-        seller_phone: req.user_phone || '',
-      })
-      setBookDialogOpen(true)
+      const listedPrice = edit.offer_price.trim() || String(req.asking_price || 0)
+      toast.success(`Sell request approved & listed live at ₹${listedPrice}!`)
+      await fetchAll()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed to approve request')
     } finally {
       setRequestSaving(prev => ({ ...prev, [req.id]: false }))
     }
   }
-
   const saveEbookRequest = async (req: EbookRequest) => {
     const edit = requestEdits[req.id] || { status: req.status, reply: req.admin_reply || '', offer_price: '' }
     setRequestSaving(prev => ({ ...prev, [req.id]: true }))

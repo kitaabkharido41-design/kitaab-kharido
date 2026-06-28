@@ -676,7 +676,7 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
     }
   }
 
-  const saveEbookRequest = async (req: EbookRequest) =>>,StartLine:614,TargetContent: {
+  const saveEbookRequest = async (req: EbookRequest) => {
     const edit = requestEdits[req.id] || { status: req.status, reply: req.admin_reply || '', offer_price: '' }
     setRequestSaving(prev => ({ ...prev, [req.id]: true }))
     try {

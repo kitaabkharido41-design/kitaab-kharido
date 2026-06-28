@@ -1352,6 +1352,28 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
                                 <p className="text-white font-medium">{req.book_title}</p>
                                 {req.author && <p className="text-xs text-white/40">{req.author}</p>}
                                 <p className="text-xs text-white/30">{req.book_condition}</p>
+                                {req.description && (
+                                  <p className="text-xs text-white/50 mt-1 max-w-[250px] italic">
+                                    "{req.description}"
+                                  </p>
+                                )}
+                                {req.image_urls && req.image_urls.length > 0 && (
+                                  <div className="flex gap-1.5 mt-2">
+                                    {req.image_urls.map((url, idx) => (
+                                      <div key={idx} className="relative group w-12 h-16 rounded border border-white/10 overflow-hidden cursor-zoom-in hover:border-amber/50 transition-colors">
+                                        <img 
+                                          src={url} 
+                                          alt="Book verification scan" 
+                                          className="w-full h-full object-cover" 
+                                          onClick={() => {
+                                            const w = window.open();
+                                            if (w) w.document.write(`<body style="margin:0; background:#060d1f; display:flex; justify-content:center; align-items:center; height:100vh;"><img src="${url}" style="max-width:100%; max-height:100%; object-fit:contain;" /></body>`);
+                                          }}
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </td>
                               <td className="px-4 py-3 hidden md:table-cell">
                                 <p className="text-white/70">{req.user_name}</p>

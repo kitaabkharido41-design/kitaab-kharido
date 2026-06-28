@@ -211,6 +211,7 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
   const [slides, setSlides] = useState<HeroSlide[]>([])
   const [bookRequests, setBookRequests] = useState<BookRequest[]>([])
   const [sellRequests, setSellRequests] = useState<SellRequest[]>([])
+  const [showProcessed, setShowProcessed] = useState(false)
   const [ebookRequests, setEbookRequests] = useState<EbookRequest[]>([])
   const [settings, setSettings] = useState<Record<string, string>>({})
 
@@ -287,6 +288,9 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
   useEffect(() => { fetchAll() }, [fetchAll])
 
   // ── Helpers ─────────────────────────────────────────────────────────
+  const filteredSellRequests = sellRequests.filter(req => 
+    showProcessed || (req.status !== 'accepted' && req.status !== 'rejected')
+  )
   const formatCurrency = (amount: number) => `₹${amount.toLocaleString('en-IN')}`
   const formatDate = (date: string) => new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 
@@ -1300,7 +1304,20 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
               ═══════════════════════════════════════════════════════════ */}
           {activeTab === 'sell-requests' && (
             <div className="space-y-4">
-              <p className="text-sm text-white/40">{sellRequests.length} requests</p>
+              <div className="flex justify-between items-center bg-[#0d1428] border border-white/5 px-4 py-2.5 rounded-xl">
+                <p className="text-sm text-white/60 font-medium">
+                  {filteredSellRequests.length} {showProcessed ? 'total' : 'pending'} requests
+                </p>
+                <label className="flex items-center gap-2 text-xs text-white/50 hover:text-white/80 cursor-pointer select-none transition-colors">
+                  <input 
+                    type="checkbox" 
+                    checked={showProcessed} 
+                    onChange={(e) => setShowProcessed(e.target.checked)}
+                    className="rounded border-white/10 bg-white/5 text-amber focus:ring-0 focus:ring-offset-0 size-3.5 cursor-pointer accent-amber"
+                  />
+                  Show processed requests
+                </label>
+              </div>
               <div className="bg-[#0f1730] border border-white/5 rounded-xl overflow-hidden">
                 <div className="overflow-x-auto max-h-[calc(100vh-220px)] overflow-y-auto">
                   <table className="w-full text-sm">
@@ -1316,10 +1333,10 @@ export function AdminDashboard({ userId, userName }: { userId: string; userName?
                       </tr>
                     </thead>
                     <tbody>
-                      {sellRequests.length === 0 ? (
-                        <tr><td colSpan={7} className="px-4 py-8 text-center text-white/30">No sell requests</td></tr>
+                      {filteredSellRequests.length === 0 ? (
+                        <tr><td colSpan={7} className="px-4 py-8 text-center text-white/30">No pending sell requests</td></tr>
                       ) : (
-                        sellRequests.map(req => {
+                        filteredSellRequests.map(req => {
                           const edit = requestEdits[req.id] || {
                             status: req.status,
                             reply: req.admin_reply || '',

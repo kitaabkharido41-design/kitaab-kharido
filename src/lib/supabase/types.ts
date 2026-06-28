@@ -135,6 +135,7 @@ export type SellRequest = {
   status: string
   offer_price: number | null
   admin_reply: string | null
+  image_urls?: string[] | null
   created_at: string
   updated_at: string
 }

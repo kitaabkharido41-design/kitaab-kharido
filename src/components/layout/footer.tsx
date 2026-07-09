@@ -128,12 +128,14 @@ export function Footer() {
           <p className="text-xs text-white/30">
             &copy; {currentYear} KitaabKharido. All rights reserved.
           </p>
+          <p className="text-[10px] text-white/20 select-none">
+            Refund Policy: All sales are final. No refunds or returns.
+          </p>
           <p className="text-xs text-white/30 flex items-center gap-1">
             Made with <Heart className="size-3 text-red-400 fill-red-400" /> for Indian students
           </p>
         </div>
-      </div>
-    </footer>
+      </div>    </footer>
   )
 }
 

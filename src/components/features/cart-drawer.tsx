@@ -509,7 +509,11 @@ function CheckoutView({
             <h3 className="text-xs sm:text-sm font-semibold text-white mb-2.5 sm:mb-3 flex items-center gap-1.5 sm:gap-2">
               <CreditCard className="size-3.5 sm:size-4 text-amber" /> Payment Method
             </h3>
+
             <div className="space-y-2 sm:space-y-2.5">
+              <p className="text-[10px] sm:text-xs text-muted-foreground/60 text-center italic bg-white/[0.02] border border-white/5 rounded p-2 mb-1">
+                ⚠️ Return Policy: All sales are final. Since we deal in second-hand books, we do not support returns or refunds once a book is delivered.
+              </p>
               <Button className="w-full h-10 sm:h-11 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm" onClick={handleWhatsAppPay} disabled={placing}>
                 {placing ? (<span className="flex items-center gap-2"><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Placing Order...</span>) : (<><MessageCircle className="size-3.5 sm:size-4" />Pay via WhatsApp</>)}
               </Button>

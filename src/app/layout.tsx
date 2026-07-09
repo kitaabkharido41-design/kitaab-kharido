@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { GlobalModals } from "@/components/providers/global-modals";
 import { SiteLayout } from "@/components/layout/site-layout";
+import Script from "next/script";
 
 const sora = Sora({
   variable: "--font-sora",
@@ -56,6 +57,20 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${sora.variable} font-sans antialiased`}>
+        {/* Google Analytics tag (gtag.js) */}
+        <Script
+          async
+          src="https://www.googletagmanager.com/gtag/js?id=G-Z371VT292L"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-Z371VT292L');
+          `}
+        </Script>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

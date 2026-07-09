@@ -31,6 +31,15 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.png",
   },
+  openGraph: {
+    title: "Kitaab Kharido — Premium Second-Hand Books",
+    description:
+      "Premium second-hand books for JEE, NEET, UPSC, CAT, GATE and beyond. Up to 60% off on academic books. Buy and sell used books at the best prices.",
+    url: "https://kitaab-kharidoo.vercel.app",
+    siteName: "Kitaab Kharido",
+    locale: "en_US",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
@@ -41,6 +50,33 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${sora.variable} font-sans antialiased`}>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Store",
+              "name": "Kitaab Kharido",
+              "url": "https://kitaabkharido.qd.je",
+              "logo": "https://kitaabkharido.qd.je/logo.png",
+              "description": "Premium second-hand books for JEE, NEET, UPSC, CAT, GATE and beyond. Up to 60% off on academic books. Buy and sell used books at the best prices.",
+              "address": {
+                "@type": "PostalAddress",
+                "addressLocality": "West Bengal",
+                "addressCountry": "IN"
+              },
+              "contactPoint": {
+                "@type": "ContactPoint",
+                "telephone": "+91-93824-70919",
+                "contactType": "customer service",
+                "email": "kitaabkharido41@gmail.com"
+              },
+              "sameAs": [
+                "https://wa.me/919382470919"
+              ]
+            })
+          }}
+        />
         <AuthProvider>
           <SiteLayout>{children}</SiteLayout>
           <GlobalModals />

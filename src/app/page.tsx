@@ -43,8 +43,20 @@ export default function HomePage() {
     )
   }
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'Kitaab Kharido',
+    alternateName: ['KitaabKharido'],
+    url: 'https://kitaab-kharidoo.vercel.app',
+  }
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <HeroCarousel slides={slides} />
       <HomeContent books={books} settings={settings} />
     </>

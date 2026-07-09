@@ -31,6 +31,9 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.png",
   },
+  verification: {
+    google: "zSxPwFSUyM_S3ax4lMX1hMr1MpH53r8ktkOg6xcbAQk",
+  },
   openGraph: {
     title: "Kitaab Kharido — Premium Second-Hand Books",
     description:

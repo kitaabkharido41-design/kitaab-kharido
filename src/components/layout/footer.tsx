@@ -29,7 +29,7 @@ export function Footer() {
               </span>
             </Link>
             <p className="text-sm text-white/50 leading-relaxed mb-6 max-w-xs">
-              Premium Second-Hand Books for Indian Students. Save up to 60% on
+              Affordable Second-Hand Books for Indian Students. Save up to 60% on
               your favourite academic books.
             </p>
             {/* Social Icons */}

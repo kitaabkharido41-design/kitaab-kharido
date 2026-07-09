@@ -127,7 +127,7 @@ const demoBooks = [
 const heroSlides = [
   {
     title: 'Up to 60% OFF',
-    subtitle: 'Premium second-hand books for JEE, NEET, UPSC & more',
+    subtitle: 'Affordable second-hand books for JEE, NEET, UPSC & more',
     cta_button_text: 'Browse Collection',
     cta_link: '/books',
     background_color: '#92400e',

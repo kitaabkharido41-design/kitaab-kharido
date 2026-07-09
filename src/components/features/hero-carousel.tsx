@@ -15,7 +15,7 @@ interface HeroCarouselProps {
 
 const defaultSlide: HeroSlide = {
   id: 'default',
-  title: 'Premium Second-Hand Books',
+  title: 'Affordable Second-Hand Books',
   subtitle: 'Save up to 60% on JEE, NEET, UPSC & more. Quality-checked, fast delivery across India.',
   cta_button_text: 'Browse Books',
   cta_link: '/books',

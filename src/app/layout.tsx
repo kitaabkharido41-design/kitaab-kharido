@@ -14,9 +14,9 @@ const sora = Sora({
 });
 
 export const metadata: Metadata = {
-  title: "Kitaab Kharido — Premium Second-Hand Books",
+  title: "Second Hand Books — Kitaab Kharido",
   description:
-    "Premium second-hand books for JEE, NEET, UPSC, CAT, GATE and beyond. Up to 60% off on academic books. Buy and sell used books at the best prices.",
+    "Affordable second-hand books for JEE, NEET, UPSC, CAT, GATE and beyond. Up to 60% off on academic books. Buy and sell used books at the best prices.",
   keywords: [
     "Kitaab Kharido",
     "second hand books",
@@ -39,9 +39,9 @@ export const metadata: Metadata = {
     canonical: "https://kitaab-kharidoo.vercel.app",
   },
   openGraph: {
-    title: "Kitaab Kharido — Premium Second-Hand Books",
+    title: "Second Hand Books — Kitaab Kharido",
     description:
-      "Premium second-hand books for JEE, NEET, UPSC, CAT, GATE and beyond. Up to 60% off on academic books. Buy and sell used books at the best prices.",
+      "Affordable second-hand books for JEE, NEET, UPSC, CAT, GATE and beyond. Up to 60% off on academic books. Buy and sell used books at the best prices.",
     url: "https://kitaab-kharidoo.vercel.app",
     siteName: "Kitaab Kharido",
     locale: "en_US",
@@ -80,7 +80,7 @@ export default function RootLayout({
               "name": "Kitaab Kharido",
               "url": "https://kitaabkharido.qd.je",
               "logo": "https://kitaabkharido.qd.je/logo.png",
-              "description": "Premium second-hand books for JEE, NEET, UPSC, CAT, GATE and beyond. Up to 60% off on academic books. Buy and sell used books at the best prices.",
+              "description": "Affordable second-hand books for JEE, NEET, UPSC, CAT, GATE and beyond. Up to 60% off on academic books. Buy and sell used books at the best prices.",
               "address": {
                 "@type": "PostalAddress",
                 "addressLocality": "West Bengal",

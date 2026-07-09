@@ -215,7 +215,7 @@ export function Navbar() {
               <span className="text-white">Kharido</span>
             </SheetTitle>
             <SheetDescription className="text-white/50">
-              Your premium second-hand book marketplace
+              Your affordable second-hand book marketplace
             </SheetDescription>
           </SheetHeader>
 

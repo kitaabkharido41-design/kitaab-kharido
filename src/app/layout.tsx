@@ -34,6 +34,9 @@ export const metadata: Metadata = {
   verification: {
     google: "zSxPwFSUyM_S3ax4lMX1hMr1MpH53r8ktkOg6xcbAQk",
   },
+  alternates: {
+    canonical: "https://kitaab-kharidoo.vercel.app",
+  },
   openGraph: {
     title: "Kitaab Kharido — Premium Second-Hand Books",
     description:

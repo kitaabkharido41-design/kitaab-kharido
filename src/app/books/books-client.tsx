@@ -24,9 +24,9 @@ const SORT_OPTIONS = [
   { value: 'title', label: 'Title A-Z' },
 ] as const
 
-export function BooksClient() {
-  const [books, setBooks] = useState<Book[]>([])
-  const [loading, setLoading] = useState(true)
+export function BooksClient({ initialBooks }: { initialBooks: Book[] }) {
+  const [books, setBooks] = useState<Book[]>(initialBooks)
+  const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('All')
   const [condition, setCondition] = useState('All')
@@ -34,13 +34,15 @@ export function BooksClient() {
   const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => {
+    // Silently update books in background
     fetch('/api/books')
       .then((r) => r.json())
       .then((res) => {
-        setBooks(res.books || [])
-        setLoading(false)
+        if (res.books && Array.isArray(res.books)) {
+          setBooks(res.books)
+        }
       })
-      .catch(() => setLoading(false))
+      .catch((err) => console.error('Silent books update failed:', err))
   }, [])
 
   // Count active filters

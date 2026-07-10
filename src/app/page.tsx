@@ -1,46 +1,46 @@
-'use client'
-
-import { useEffect, useState } from 'react'
 import { HeroCarousel } from '@/components/features/hero-carousel'
 import { HomeContent } from '@/components/features/home-content'
-import { Loader2 } from 'lucide-react'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { HeroSlide, Book } from '@/lib/supabase/types'
 
-export default function HomePage() {
-  const [slides, setSlides] = useState<HeroSlide[]>([])
-  const [books, setBooks] = useState<Book[]>([])
-  const [settings, setSettings] = useState<Record<string, string>>({})
-  const [loading, setLoading] = useState(true)
+// Cache the static page on Vercel's edge network for 10 minutes (ISR)
+export const revalidate = 600
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const [slidesRes, booksRes, settingsRes] = await Promise.all([
-          fetch('/api/hero-slides').then((r) => r.json()),
-          fetch('/api/books').then((r) => r.json()),
-          fetch('/api/settings').then((r) => r.json()),
-        ])
-        setSlides(slidesRes.slides || [])
-        setBooks(booksRes.books || [])
-        setSettings(settingsRes.settings || {})
-      } catch (err) {
-        console.error('Failed to fetch homepage data:', err)
-      } finally {
-        setLoading(false)
-      }
+export default async function HomePage() {
+  let slides: HeroSlide[] = []
+  let books: Book[] = []
+  let settings: Record<string, string> = {}
+
+  try {
+    const supabase = await createAdminClient()
+
+    const [slidesRes, booksRes, settingsRes] = await Promise.all([
+      supabase
+        .from('hero_slides')
+        .select('*')
+        .eq('active', true)
+        .order('sort_order'),
+      supabase
+        .from('books')
+        .select('*')
+        .eq('active', true)
+        .order('featured', { ascending: false })
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('site_settings')
+        .select('*')
+    ])
+
+    if (slidesRes.data) slides = slidesRes.data as HeroSlide[]
+    if (booksRes.data) books = booksRes.data as Book[]
+    
+    if (settingsRes.data) {
+      settingsRes.data.forEach((s: any) => {
+        if (s.key) settings[s.key] = s.value || ''
+      })
     }
-    fetchData()
-  }, [])
-
-  if (loading) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="size-8 text-amber animate-spin mx-auto mb-4" />
-          <p className="text-white/50">Loading Kitaab Kharido...</p>
-        </div>
-      </div>
-    )
+  } catch (err) {
+    console.error('Failed to fetch homepage data on server:', err)
   }
 
   const jsonLd = {

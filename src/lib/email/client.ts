@@ -24,13 +24,32 @@ export async function sendEmail({ to, subject, react }: EmailOptions) {
     return { error: 'RESEND_API_KEY missing' }
   }
 
+  let finalTo = to
+  let finalSubject = subject
+
+  // If in sandbox mode (using onboarding@resend.dev), redirect all emails to admin
+  // since Resend will block emails sent to unverified external addresses
+  if (FROM_EMAIL === 'onboarding@resend.dev') {
+    const originalTo = Array.isArray(to) ? to.join(', ') : to
+    if (originalTo.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+      finalTo = ADMIN_EMAIL
+      finalSubject = `[Sandbox Test to: ${originalTo}] ${subject}`
+      console.log(`[Sandbox Mode] Redirecting email from ${originalTo} to admin ${ADMIN_EMAIL}`)
+    }
+  }
+
   try {
     const data = await resend.emails.send({
       from: FROM_EMAIL,
-      to,
-      subject,
+      to: finalTo,
+      subject: finalSubject,
       react,
     })
+    
+    if (data.error) {
+      console.error('Resend API returned error:', data.error)
+      return { error: data.error }
+    }
     
     return { data }
   } catch (error) {

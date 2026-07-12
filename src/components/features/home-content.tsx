@@ -195,6 +195,26 @@ export function HomeContent({ books, settings }: HomeContentProps) {
           </motion.div>
         </div>
       </section>
+
+      {/* ── SEO Content Section ── */}
+      <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8 border-t border-white/5 pt-12">
+        <div className="max-w-3xl mx-auto text-center space-y-6">
+          <h2 className="text-xl font-bold text-white sm:text-2xl">
+            Kitaab Kharido — Your Go-To Shop for Cheap Second Hand Books
+          </h2>
+          <p className="text-sm text-white/50 leading-relaxed">
+            Looking for affordable <strong className="text-amber">second hand books</strong> online in India? 
+            At <strong className="text-amber">Kitaab Kharido</strong>, we provide a wide range of verified 
+            pre-owned books for competitive exams like <strong className="text-white">JEE, NEET, UPSC, CAT, GATE</strong>, and academic subjects. 
+            Our mission is to help Indian students save up to 60% by buying cheap books online, ensuring condition checks 
+            and quick delivery to your doorstep.
+          </p>
+          <p className="text-xs text-white/30">
+            Kitaab Kharido is the premier online second-hand bookstore. Buy cheap used books, sell your old textbooks 
+            for instant cash, or request hard-to-find books. Join thousands of students buying used books at the best prices!
+          </p>
+        </div>
+      </section>
     </div>
   )
 }

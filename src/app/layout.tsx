@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     icon: "/favicon.png",
   },
   verification: {
-    google: "zSxPwFSUyM_S3ax4lMX1hMr1MpH53r8ktkOg6xcbAQk",
+    google: "vKVE4nfzVCQjZfPUIzqPxwg9UyKe1gJxKOgCdEo9Mh0",
   },
   alternates: {
     canonical: "https://kitaab-kharidoo.vercel.app",
